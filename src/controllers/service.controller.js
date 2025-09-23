@@ -173,9 +173,6 @@ const getService = (async (req, res) => {
 
         let total = await Service.countDocuments(filter)
 
-        console.log(services);
-
-
         return res.status(200).send({
             success: true,
             total,
