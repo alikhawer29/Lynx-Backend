@@ -386,7 +386,7 @@ const getFavoriteServices = (async (req, res) => {
         })
 
         if (query?.categories && query?.categories?.length > 0) {
-            services = services.filter(service => service.category?.some(item => query?.categories?.includes(item._id.toString())))
+            services = services.filter(service => query?.categories?.includes(service?.category?._id?.toString()))
         }
 
         return res.status(200).send({
