@@ -1,3 +1,5 @@
+const path = require("path")
+
 const MONTHS = [`January`, `February`, `March`, `April`, `May`, `June`, `July`, `August`, `September`, `October`, `November`, `December`]
 
 const COMMISSION = 10
@@ -288,6 +290,15 @@ const getOrdinal = (n) => {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+const normalize = (link) => {
+
+    if (!link) return ''
+
+    const normalized = path.normalize(link)
+    return normalized.split(path.sep).join('/')
+
+}
+
 module.exports = {
     COMMISSION,
     SLOTS,
@@ -324,5 +335,6 @@ module.exports = {
     generatePassword,
     getRange,
     getFileType,
-    getOrdinal
+    getOrdinal,
+    normalize
 }; 

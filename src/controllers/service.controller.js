@@ -3,7 +3,7 @@ const dotenv = require('dotenv')
 const Service = require('../models/service.model')
 const Review = require('../models/user.model')
 const User = require('../models/user.model')
-const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES } = require('../utils')
+const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, normalize } = require('../utils')
 
 dotenv.config()
 
@@ -21,7 +21,7 @@ const createService = (async (req, res) => {
         let payload = {
             ...body,
             user: decoded.id,
-            image: file ? file.path : null
+            image: file ? normalize(file.path) : null
         }
 
         let service = new Service(payload)

@@ -7,6 +7,7 @@ const {
     getDateRangeQuery,
     ERRORS,
     GENERAL_STATUS,
+    normalize,
 } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendNotification } = require('../helpers/notification')
@@ -165,7 +166,7 @@ const updateUser = (async (req, res) => {
             if (!user?.picture?.includes("dummy")) {
                 removeImage(user.picture)
             }
-            payload.picture = file.path
+            payload.picture = normalize(file.path)
         }
 
         let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
@@ -391,7 +392,7 @@ const getFavoriteServices = (async (req, res) => {
 
         if (query?.search && query?.search.trim() !== "") {
             const name = query.search.trim().toLowerCase()
-            services = services.filter(item =>item?.name?.toLowerCase().includes(name))
+            services = services.filter(item => item?.name?.toLowerCase().includes(name))
         }
 
         return res.status(200).send({

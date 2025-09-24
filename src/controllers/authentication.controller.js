@@ -4,8 +4,7 @@ const Otp = require('../models/otp.model')
 const Conversation = require('../models/conversation.model')
 const { comparePassword } = require('../helpers/encryption')
 const { generateToken } = require('../helpers/token')
-const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES } = require('../utils')
-const { sendNotification } = require('../helpers/notification')
+const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 
 const socialLogin = (async (req, res) => {
@@ -196,7 +195,7 @@ const signup = (async (req, res) => {
         let payload = { ...body }
 
         if (file) {
-            payload.picture = file.path
+            payload.picture = normalize(file.path)
         }
 
         let user = new User(payload)
