@@ -379,11 +379,15 @@ const getFavoriteServices = (async (req, res) => {
 
         let user = await User.findById(id).populate({ path: "favorite_services", populate: "category" }).select("favorite_services")
 
-        let services = (user?.favorite_services || []).filter(service => service.category?.some(item => query?.categories?.includes(item._id.toString()))).map(item => {
+        let services = (user?.favorite_services || []).map(item => {
             let service = item.toObject()
             service.is_favorite = true
             return service
         })
+
+        if (query?.categories && query?.categories?.length > 0) {
+            services = services.filter(service => service.category?.some(item => query?.categories?.includes(item._id.toString())))
+        }
 
         return res.status(200).send({
             success: true,
