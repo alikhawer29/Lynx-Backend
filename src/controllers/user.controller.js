@@ -389,6 +389,11 @@ const getFavoriteServices = (async (req, res) => {
             services = services.filter(service => query?.categories?.includes(service?.category?._id?.toString()))
         }
 
+        if (query?.search && query?.search.trim() !== "") {
+            const name = query.search.trim().toLowerCase()
+            services = services.filter(item =>item?.name?.toLowerCase().includes(name))
+        }
+
         return res.status(200).send({
             success: true,
             data: services || []
