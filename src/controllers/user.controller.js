@@ -374,11 +374,12 @@ const handleFavoriteServices = (async (req, res) => {
 const getFavoriteServices = (async (req, res) => {
     try {
 
-        let { id } = req.decoded
+        let { decoded, query } = req
+        let { id } = decoded
 
         let user = await User.findById(id).populate({ path: "favorite_services", populate: "category" }).select("favorite_services")
 
-        let services = (user?.favorite_services || []).map(item => {
+        let services = (user?.favorite_services || []).filter(service => service.category?.some(item => query?.categories?.includes(item._id.toString()))).map(item => {
             let service = item.toObject()
             service.is_favorite = true
             return service
