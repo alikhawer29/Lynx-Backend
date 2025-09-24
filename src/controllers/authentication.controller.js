@@ -6,6 +6,7 @@ const { comparePassword } = require('../helpers/encryption')
 const { generateToken } = require('../helpers/token')
 const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
+const { sendMail } = require("../helpers/email")
 
 const socialLogin = (async (req, res) => {
     try {
@@ -248,6 +249,8 @@ const forgetPassword = (async (req, res) => {
             expiry,
             userId: userExist._id,
         }
+
+        sendMail("noreply@lynxconsultancy.com", email, "Password Recovery - Lynx Consultancy", otp)
 
         let otpData = new Otp(payload)
         await otpData.save()
