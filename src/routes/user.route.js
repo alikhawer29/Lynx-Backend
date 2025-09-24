@@ -3,13 +3,14 @@ const router = express.Router()
 
 const userController = require('../controllers/user.controller')
 const { AuthVerifier, RestrictAccess } = require('../middlewares/auth.middleware')
+const upload = require('../middlewares/upload.middleware')
 const { ROLES } = require('../utils')
 
 router.get('/get', AuthVerifier, userController.getUser)
 
 router.get('/get/:id', AuthVerifier, userController.getUserById)
 
-router.put('/update', AuthVerifier, userController.updateUser)
+router.put('/update', AuthVerifier, upload("user").single("image"), userController.updateUser)
 
 router.patch('/handle-status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.handleStatus)
 

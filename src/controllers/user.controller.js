@@ -10,6 +10,7 @@ const {
 } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendNotification } = require('../helpers/notification')
+const { removeImage } = require('../helpers/image')
 
 const completeProfile = (async (req, res) => {
     try {
@@ -145,7 +146,7 @@ const getUserById = (async (req, res) => {
 const updateUser = (async (req, res) => {
     try {
 
-        let { decoded, body } = req
+        let { decoded, body, file } = req
 
         let validate = objectValidator(body)
 
@@ -157,7 +158,17 @@ const updateUser = (async (req, res) => {
             throw new Error("Email or Password is not allowed to be edit")
         }
 
-        let user = await User.findByIdAndUpdate(decoded.id, { $set: body }, { new: true }).lean({ virtuals: true })
+        let payload = { ...body }
+
+        if (file) {
+            let user = await User.findById(decoded.id)
+            if (!user?.picture?.includes("dummy")) {
+                removeImage(user.picture)
+            }
+            payload.picture = file.path
+        }
+
+        let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
 
         let active_subscription = await getCurrentSubscription(user?._id)
         user.active_subscription = active_subscription
