@@ -53,8 +53,7 @@ const AUTH_TYPES = {
     APPLE: "apple",
 }
 
-const QUIZ_MEDIA_TYPES = {
-    AUDIO: "audio",
+const MEDIA_TYPES = {
     VIDEO: "video",
     IMAGE: "image"
 }
@@ -105,7 +104,7 @@ const ENUM_TASK_STATUS = Object.values(TASK_STATUS)
 const ENUM_MESSAGE_STATUS = Object.values(MESSAGE_STATUS)
 const ENUM_CONTENT_TYPES = Object.values(CONTENT_TYPES)
 const ENUM_AUTH_TYPES = Object.values(AUTH_TYPES)
-const ENUM_QUIZ_MEDIA_TYPES = Object.values(QUIZ_MEDIA_TYPES)
+const ENUM_MEDIA_TYPES = Object.values(MEDIA_TYPES)
 const ENUM_PUSH_USER_TYPES = Object.values(PUSH_USER_TYPES)
 
 const generateOTP = async () => {
@@ -314,7 +313,7 @@ module.exports = {
     CONTENT_TYPES,
     AUTH_TYPES,
     PUSH_USER_TYPES,
-    QUIZ_MEDIA_TYPES,
+    MEDIA_TYPES,
     ENUM_WORKING_TIME,
     ENUM_BOOKING_STATUS,
     ENUM_GENERAL_STATUS,
@@ -322,7 +321,7 @@ module.exports = {
     ENUM_MESSAGE_STATUS,
     ENUM_CONTENT_TYPES,
     ENUM_AUTH_TYPES,
-    ENUM_QUIZ_MEDIA_TYPES,
+    ENUM_MEDIA_TYPES,
     ENUM_PUSH_USER_TYPES,
     generateOTP,
     paginationHandler,
