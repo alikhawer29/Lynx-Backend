@@ -11,6 +11,7 @@ const notificationRoutes = require('./notification.route')
 const packageRoutes = require('./package.route')
 const serviceRoutes = require('./service.route')
 const pushnotificationRoutes = require('./pushnotification.route')
+const contentRoutes = require('./content.route')
 
 router.use('/user', userRoutes)
 
@@ -31,5 +32,7 @@ router.use('/package', packageRoutes)
 router.use('/service', serviceRoutes)
 
 router.use('/push-notification', pushnotificationRoutes)
+
+router.use('/content', contentRoutes)
 
 module.exports = router
