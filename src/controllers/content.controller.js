@@ -104,7 +104,21 @@ const getContentById = (async (req, res) => {
 
         let { id } = req.params
 
-        let content = await Content.findById(id)
+        let content = await Content.findById(id).lean({ virtuals: true })
+
+        if (content?.type === CONTENT_TYPES.VIDEO) {
+
+            const similar_content = await Content.find({
+                _id: { $ne: content._id },
+                type: content.type,
+                active: true
+            })
+                .limit(5)
+                .lean({ virtuals: true })
+
+            content.similar_content = similar_content
+
+        }
 
         return res.status(200).send({
             success: true,
