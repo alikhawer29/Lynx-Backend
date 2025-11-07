@@ -1,13 +1,52 @@
-const express = require('express')
-const router = express.Router()
+const express = require('express');
+const router = express.Router();
 
-const reviewController = require('../controllers/review.controller')
-const { AuthVerifier } = require('../middlewares/auth.middleware')
+const reviewController = require('../controllers/review.controller');
+const { AuthVerifier, RestrictAccess, OptionalAuthVerifier } = require('../middlewares/auth.middleware');
+const { ROLES } = require('../utils');
 
-router.post('/create', AuthVerifier, reviewController.createReview)
+// Create Review/Rating for Service
+router.post(
+    '/create',
+    AuthVerifier,
+    RestrictAccess([ROLES.USER, ROLES.ADMIN]),
+    reviewController.createReview
+);
 
-router.get('/get', AuthVerifier, reviewController.getReview)
+// Get All Reviews
+router.get(
+    '/get',
+    OptionalAuthVerifier,
+    reviewController.getReview
+);
 
-router.get('/get/:id', AuthVerifier, reviewController.getReviewById)
+// Get Review by ID
+router.get(
+    '/get/:id',
+    OptionalAuthVerifier,
+    reviewController.getReviewById
+);
 
-module.exports = router
+// Get Service Reviews with Statistics
+router.get(
+    '/service/:id',
+    OptionalAuthVerifier,
+    reviewController.getServiceReviews
+);
+
+// Update Review
+router.patch(
+    '/update/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.USER, ROLES.ADMIN]),
+    reviewController.updateReview
+);
+
+// Delete Review
+router.delete(
+    '/delete/:id',
+    AuthVerifier,
+    reviewController.deleteReview
+);
+
+module.exports = router;

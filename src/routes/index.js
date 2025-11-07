@@ -10,8 +10,11 @@ const conversationRoutes = require('./conversation.route')
 const notificationRoutes = require('./notification.route')
 const packageRoutes = require('./package.route')
 const serviceRoutes = require('./service.route')
+const bookingRoutes = require('./booking.route')
 const pushnotificationRoutes = require('./pushnotification.route')
 const contentRoutes = require('./content.route')
+const reviewRoutes = require('./review.route')
+const reportRoutes = require('./report.route')
 
 router.use('/user', userRoutes)
 
@@ -31,8 +34,14 @@ router.use('/package', packageRoutes)
 
 router.use('/service', serviceRoutes)
 
+router.use('/booking', bookingRoutes)
+
 router.use('/push-notification', pushnotificationRoutes)
 
 router.use('/content', contentRoutes)
+
+router.use('/review', reviewRoutes)
+
+router.use('/report', reportRoutes)
 
 module.exports = router

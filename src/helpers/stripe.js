@@ -1,5 +1,7 @@
 const dotenv = require('dotenv')
 const User = require("../models/user.model");
+const Payment = require("../models/payment.model");
+const Booking = require("../models/booking.model");
 const { sendNotification } = require('./notification');
 
 dotenv.config()
@@ -17,11 +19,81 @@ const webhook = async (req, res) => {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
+    // Handle subscription invoice paid
     if (event.type === "invoice.paid") {
         const invoice = event.data.object;
         let user = await User.findOne({ stripe_customer_id: invoice?.customer })
         console.log("✅ Invoice Paid: user", user);
         sendNotification({ title: "Subscription Success", body: "Success", data: { type: "subscription_success" } }, user?._id, false)
+    }
+
+    // Handle payment intent succeeded
+    if (event.type === "payment_intent.succeeded") {
+        const paymentIntent = event.data.object;
+        console.log("✅ Payment Intent Succeeded:", paymentIntent.id);
+
+        try {
+            // Find payment record
+            const payment = await Payment.findOne({ stripe_payment_intent_id: paymentIntent.id });
+
+            if (payment) {
+                // Update payment status
+                payment.payment_status = 'succeeded';
+                payment.transaction_id = paymentIntent.id;
+                payment.payment_method = paymentIntent.payment_method;
+                await payment.save();
+
+                // Update booking payment status
+                const booking = await Booking.findById(payment.booking_id);
+                if (booking) {
+                    booking.payment_status = 'paid';
+                    await booking.save();
+
+                    // Send notification to user
+                    sendNotification(
+                        {
+                            title: "Payment Success",
+                            body: `Payment for booking ${booking.booking_id} completed successfully`,
+                            data: { type: "payment_success", booking_id: booking._id.toString() }
+                        },
+                        payment.user_id,
+                        false
+                    );
+                }
+            }
+        } catch (error) {
+            console.error("Error updating payment status:", error);
+        }
+    }
+
+    // Handle payment intent failed
+    if (event.type === "payment_intent.payment_failed") {
+        const paymentIntent = event.data.object;
+        console.log("❌ Payment Intent Failed:", paymentIntent.id);
+
+        try {
+            // Find payment record
+            const payment = await Payment.findOne({ stripe_payment_intent_id: paymentIntent.id });
+
+            if (payment) {
+                // Update payment status
+                payment.payment_status = 'failed';
+                await payment.save();
+
+                // Send notification to user
+                sendNotification(
+                    {
+                        title: "Payment Failed",
+                        body: "Your payment could not be processed. Please try again.",
+                        data: { type: "payment_failed", booking_id: payment.booking_id.toString() }
+                    },
+                    payment.user_id,
+                    false
+                );
+            }
+        } catch (error) {
+            console.error("Error updating payment status:", error);
+        }
     }
 
     res.json({ received: true });
@@ -273,6 +345,47 @@ const getTotalSubscriptionRevenue = async () => {
     }
 }
 
+const createPaymentIntent = async (userId, amount, currency = 'usd', metadata = {}) => {
+    try {
+        let customer_id = null;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Get or create Stripe customer
+        if (user?.stripe_customer_id && user?.stripe_customer_id !== null) {
+            customer_id = user.stripe_customer_id;
+        } else {
+            customer_id = await createCustomer(user?.email, `${user?.first_name} ${user?.last_name}`);
+            user.stripe_customer_id = customer_id;
+            await user.save();
+        }
+
+        // Create payment intent
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: currency,
+            customer: customer_id,
+            metadata: metadata,
+            automatic_payment_methods: {
+                enabled: true,
+            },
+        });
+
+        return {
+            paymentIntentId: paymentIntent.id,
+            clientSecret: paymentIntent.client_secret,
+            customerId: customer_id,
+        };
+
+    } catch (error) {
+        throw error;
+    }
+};
+
 module.exports = {
     webhook,
     createProduct,
@@ -284,5 +397,6 @@ module.exports = {
     getAllProductsWithPrices,
     getProductWithPrices,
     updateProduct,
-    getTotalSubscriptionRevenue
+    getTotalSubscriptionRevenue,
+    createPaymentIntent
 };
