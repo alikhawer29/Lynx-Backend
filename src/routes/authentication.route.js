@@ -4,7 +4,9 @@ const router = express.Router()
 const authController = require('../controllers/authentication.controller')
 const upload = require('../middlewares/upload.middleware')
 
-router.post('/signup', upload("user").single("image"), authController.signup)
+// Unified signup for both users and providers
+// Accepts: image (profile picture), certifications[0][certificate_picture], certifications[1][certificate_picture], etc.
+router.post('/signup', upload("user").any(), authController.signup)
 
 router.post('/login', authController.login)
 

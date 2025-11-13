@@ -15,6 +15,7 @@ const pushnotificationRoutes = require('./pushnotification.route')
 const contentRoutes = require('./content.route')
 const reviewRoutes = require('./review.route')
 const reportRoutes = require('./report.route')
+const slotRoutes = require('./slot.route')
 
 router.use('/user', userRoutes)
 
@@ -43,5 +44,7 @@ router.use('/content', contentRoutes)
 router.use('/review', reviewRoutes)
 
 router.use('/report', reportRoutes)
+
+router.use('/slot', slotRoutes)
 
 module.exports = router

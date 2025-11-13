@@ -81,7 +81,41 @@ const userSchema = mongoose.Schema({
         required: function () {
             return this.auth_provider !== AUTH_TYPES.EMAIL
         }
-    }
+    },
+
+    // Provider-specific fields (for service providers)
+    certifications: [{
+        institution_name: {
+            type: String,
+            required: function () {
+                return this.role === ROLES.PROVIDER && this.certifications && this.certifications.length > 0
+            }
+        },
+        certificate_title: {
+            type: String,
+            required: function () {
+                return this.role === ROLES.PROVIDER && this.certifications && this.certifications.length > 0
+            }
+        },
+        certificate_picture: {
+            type: String,
+            required: function () {
+                return this.role === ROLES.PROVIDER && this.certifications && this.certifications.length > 0
+            }
+        }
+    }],
+
+    // Provider verification status
+    is_verified: {
+        type: Boolean,
+        default: false
+    },
+
+    // Provider services (what services they can provide)
+    provider_services: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Service"
+    }]
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
@@ -111,11 +145,45 @@ userSchema.pre('findOneAndUpdate', (async function (next) {
 userSchema.index({ email: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } })
 userSchema.index({ location: '2dsphere' })
 
+
 userSchema.virtual('image_url').get(function () {
-    if (this.picture && this.picture.startsWith('http')) {
+    if (!this.picture) {
+        return null
+    }
+    if (this.picture.startsWith('http')) {
         return this.picture
     }
-    return `${process.env.BASE_URL}${this.picture}`
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.picture.startsWith('/') ? this.picture : `/${this.picture}`
+    return `${baseUrl}${path}`
+})
+
+userSchema.virtual('certifications_with_urls').get(function () {
+    if (!this.certifications || this.certifications.length === 0) {
+        return []
+    }
+    return this.certifications.map(cert => {
+        let certificate_url = null
+        if (cert.certificate_picture) {
+            if (cert.certificate_picture.startsWith('http')) {
+                certificate_url = cert.certificate_picture
+            } else {
+                // Remove trailing slash from BASE_URL and add leading slash to path if needed
+                const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+                const path = cert.certificate_picture.startsWith('/')
+                    ? cert.certificate_picture
+                    : `/${cert.certificate_picture}`
+                certificate_url = `${baseUrl}${path}`
+            }
+        }
+        return {
+            institution_name: cert.institution_name,
+            certificate_title: cert.certificate_title,
+            certificate_picture: cert.certificate_picture,
+            certificate_url
+        }
+    })
 })
 
 userSchema.plugin(mongooseLeanVirtuals)

@@ -183,6 +183,8 @@ const updatePaymentStatus = async (req, res) => {
             const booking = await Booking.findById(payment.booking_id);
             if (booking) {
                 booking.payment_status = 'paid';
+                // Status remains 'pending' until admin assigns provider
+                // booking_status and status will be updated when provider is assigned
                 await booking.save();
             }
         }

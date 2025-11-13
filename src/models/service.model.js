@@ -81,11 +81,19 @@ serviceSchema.methods.restore = async function () {
     await this.save()
 }
 
+
 serviceSchema.virtual('image_url').get(function () {
-    if (this.image && this.image.startsWith('http')) {
+    if (!this.image) {
+        return null
+    }
+    if (this.image.startsWith('http')) {
         return this.image
     }
-    return `${process.env.BASE_URL}${this.image}`
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.image.startsWith('/') ? this.image : `/${this.image}`
+    return `${baseUrl}${path}`
 })
+
 
 module.exports = mongoose.model("Service", serviceSchema)

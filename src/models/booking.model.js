@@ -29,6 +29,16 @@ const bookingSchema = new mongoose.Schema(
             ref: "Category",
         },
 
+        provider_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+
+        slot_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Slot",
+        },
+
         price_type: {
             type: String,
             enum: ["normal", "premium"],

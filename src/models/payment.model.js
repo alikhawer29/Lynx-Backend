@@ -69,6 +69,42 @@ const paymentSchema = new mongoose.Schema(
             type: Object,
         },
 
+        // Refund details
+        refund_amount: {
+            type: Number,
+            default: 0,
+        },
+
+        refund_status: {
+            type: String,
+            enum: ["none", "partial", "full"],
+            default: "none",
+        },
+
+        stripe_refund_id: {
+            type: String,
+        },
+
+        refund_reason: {
+            type: String,
+        },
+
+        refunded_at: {
+            type: Date,
+        },
+
+        // Provider compensation (for late cancellations)
+        provider_compensation_amount: {
+            type: Number,
+            default: 0,
+        },
+
+        provider_compensation_status: {
+            type: String,
+            enum: ["none", "pending", "completed"],
+            default: "none",
+        },
+
         // Soft delete fields
         deleted: { type: Boolean, default: false },
         deletedAt: { type: Date },

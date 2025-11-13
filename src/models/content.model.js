@@ -48,17 +48,29 @@ const contentSchema = mongoose.Schema({
 })
 
 contentSchema.virtual('media_url').get(function () {
-    if (this.media && this.media.startsWith('http')) {
+    if (!this.media) {
+        return null
+    }
+    if (this.media.startsWith('http')) {
         return this.media
     }
-    return `${process.env.BASE_URL}${this.media}`
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.media.startsWith('/') ? this.media : `/${this.media}`
+    return `${baseUrl}${path}`
 })
 
 contentSchema.virtual('media_thumbnail_url').get(function () {
-    if (this.media_thumbnail && this.media_thumbnail.startsWith('http')) {
+    if (!this.media_thumbnail) {
+        return null
+    }
+    if (this.media_thumbnail.startsWith('http')) {
         return this.media_thumbnail
     }
-    return `${process.env.BASE_URL}${this.media_thumbnail}`
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.media_thumbnail.startsWith('/') ? this.media_thumbnail : `/${this.media_thumbnail}`
+    return `${baseUrl}${path}`
 })
 
 contentSchema.plugin(mongooseLeanVirtuals)

@@ -44,6 +44,50 @@ router.delete(
     bookingController.deleteBooking
 );
 
+// Cancel Booking with Refund (User or Admin)
+router.post(
+    '/cancel/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.USER, ROLES.ADMIN]),
+    bookingController.cancelBooking
+);
+
+// ============================
+// Admin Appointment Management Routes
+// ============================
+
+// Assign Provider to Booking (Admin Only)
+router.post(
+    '/assign-provider/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.assignProvider
+);
+
+// Reject Booking (Admin Only)
+router.post(
+    '/reject/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.rejectBooking
+);
+
+// Get Appointment Requests (Pending Bookings - Admin Only)
+router.get(
+    '/appointment-requests',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.getAppointmentRequests
+);
+
+// Get Appointment Management (Approved Bookings - Admin Only)
+router.get(
+    '/appointment-management',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.getAppointmentManagement
+);
+
 // ============================
 // Payment Routes
 // ============================
@@ -64,10 +108,10 @@ router.get(
 );
 
 // Update Payment Status
-router.patch(
+router.post(
     '/payment/update/:id',
     AuthVerifier,
-    RestrictAccess([ROLES.ADMIN]),
+    RestrictAccess([ROLES.USER, ROLES.ADMIN]),
     paymentController.updatePaymentStatus
 );
 
@@ -75,7 +119,7 @@ router.patch(
 router.get(
     '/payments/all',
     AuthVerifier,
-    RestrictAccess([ROLES.ADMIN]),
+    RestrictAccess([ROLES.USER, ROLES.ADMIN]),
     paymentController.getAllPayments
 );
 

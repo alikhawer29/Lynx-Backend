@@ -386,6 +386,64 @@ const createPaymentIntent = async (userId, amount, currency = 'usd', metadata = 
     }
 };
 
+/**
+ * Create a refund for a payment intent
+ * @param {string} paymentIntentId - Stripe payment intent ID
+ * @param {number} amount - Amount to refund in dollars (will be converted to cents)
+ * @param {string} reason - Reason for refund (must be: 'duplicate', 'fraudulent', or 'requested_by_customer')
+ * @returns {object} - Refund object from Stripe
+ */
+const createRefund = async (paymentIntentId, amount, reason = 'requested_by_customer') => {
+    try {
+        // Stripe only accepts these specific reasons
+        const validReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
+        const stripeReason = validReasons.includes(reason) ? reason : 'requested_by_customer';
+
+        const refund = await stripe.refunds.create({
+            payment_intent: paymentIntentId,
+            amount: Math.round(amount * 100), // Convert to cents
+            reason: stripeReason,
+        });
+
+        return refund;
+    } catch (error) {
+        console.error('Error creating refund:', error);
+        throw error;
+    }
+};
+
+/**
+ * Transfer money to admin account (for provider compensation)
+ * Note: This requires Stripe Connect to be set up
+ * For now, we'll just track it in the database
+ * @param {number} amount - Amount to transfer
+ * @param {string} description - Description of transfer
+ */
+const transferToAdmin = async (amount, description) => {
+    try {
+        // TODO: Implement actual Stripe transfer when Connect is set up
+        // For now, just log it
+        console.log(`💰 Admin compensation: $${amount} - ${description}`);
+
+        // In production, you would do:
+        // const transfer = await stripe.transfers.create({
+        //     amount: Math.round(amount * 100),
+        //     currency: 'usd',
+        //     destination: process.env.ADMIN_STRIPE_ACCOUNT_ID,
+        //     description: description,
+        // });
+
+        return {
+            success: true,
+            amount: amount,
+            description: description,
+        };
+    } catch (error) {
+        console.error('Error transferring to admin:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     webhook,
     createProduct,
@@ -398,5 +456,7 @@ module.exports = {
     getProductWithPrices,
     updateProduct,
     getTotalSubscriptionRevenue,
-    createPaymentIntent
+    createPaymentIntent,
+    createRefund,
+    transferToAdmin
 };

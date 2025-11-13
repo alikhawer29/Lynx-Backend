@@ -178,8 +178,8 @@ const login = (async (req, res) => {
 const signup = (async (req, res) => {
     try {
 
-        let { body, file } = req
-        let { email } = body
+        let { body, files } = req
+        let { email, role } = body
 
         let validate = objectValidator(body)
 
@@ -195,8 +195,98 @@ const signup = (async (req, res) => {
 
         let payload = { ...body }
 
-        if (file) {
-            payload.picture = normalize(file.path)
+        // Set default role to USER if not provided
+        if (!role) {
+            payload.role = ROLES.USER
+        }
+
+        // Convert files array to object for easier access (when using .any())
+        let filesMap = {}
+        if (files && Array.isArray(files)) {
+            files.forEach(file => {
+                filesMap[file.fieldname] = file
+            })
+        }
+
+        // Handle profile picture upload
+        if (filesMap['image']) {
+            payload.picture = normalize(filesMap['image'].path)
+        }
+
+        // Handle provider certifications
+        if (role === ROLES.PROVIDER) {
+            // Debug: Log all body keys to see what we're receiving
+            console.log('Body keys:', Object.keys(body))
+            console.log('Files map keys:', Object.keys(filesMap))
+
+            // Build certifications array from form fields
+            let certifications = []
+
+            // Method 1: Try to extract from array notation
+            let certIndex = 0
+            while (body[`certifications[${certIndex}][institution_name]`]) {
+                let cert = {
+                    institution_name: body[`certifications[${certIndex}][institution_name]`],
+                    certificate_title: body[`certifications[${certIndex}][certificate_title]`],
+                    certificate_picture: null
+                }
+
+                // Check if there's a corresponding file upload
+                const certPictureField = `certifications[${certIndex}][certificate_picture]`
+                if (filesMap[certPictureField]) {
+                    cert.certificate_picture = normalize(filesMap[certPictureField].path)
+                }
+
+                certifications.push(cert)
+                certIndex++
+            }
+
+            // Method 2: If no certifications found, try to parse from JSON string
+            if (certifications.length === 0 && body.certifications) {
+                try {
+                    let parsedCerts = typeof body.certifications === 'string'
+                        ? JSON.parse(body.certifications)
+                        : body.certifications
+
+                    if (Array.isArray(parsedCerts)) {
+                        certifications = parsedCerts.map((cert, index) => {
+                            let certData = {
+                                institution_name: cert.institution_name,
+                                certificate_title: cert.certificate_title,
+                                certificate_picture: null
+                            }
+
+                            // Try to find matching file
+                            if (filesMap[`certificates[${index}]`]) {
+                                certData.certificate_picture = normalize(filesMap[`certificates[${index}]`].path)
+                            } else if (filesMap.certificates && filesMap.certificates[index]) {
+                                certData.certificate_picture = normalize(filesMap.certificates[index].path)
+                            }
+
+                            return certData
+                        })
+                    }
+                } catch (e) {
+                    console.log('Error parsing certifications JSON:', e)
+                }
+            }
+
+            console.log('Certifications found:', certifications.length)
+            console.log('Certifications data:', JSON.stringify(certifications, null, 2))
+
+            if (certifications.length === 0) {
+                throw new Error("Service providers must provide at least one certification")
+            }
+
+            payload.certifications = certifications
+            payload.is_verified = false // Providers need admin verification
+
+            // Remove the individual certification fields from payload
+            Object.keys(payload).forEach(key => {
+                if (key.startsWith('certifications[')) {
+                    delete payload[key]
+                }
+            })
         }
 
         let user = new User(payload)
@@ -205,9 +295,13 @@ const signup = (async (req, res) => {
         // let conversation = new Conversation({ participants: [user._id] })
         // await conversation.save()
 
+        const message = role === ROLES.PROVIDER
+            ? "Service Provider Successfully Registered. Your account will be verified by admin."
+            : "User Successfully Registered"
+
         return res.status(200).send({
             success: true,
-            message: "User Successfully Registered"
+            message
         })
 
     } catch (e) {

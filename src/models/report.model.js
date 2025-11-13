@@ -115,10 +115,16 @@ reportSchema.virtual('attachments_urls').get(function () {
     if (!this.attachments || this.attachments.length === 0) return [];
 
     return this.attachments.map(attachment => {
-        if (attachment && attachment.startsWith('http')) {
+        if (!attachment) {
+            return null;
+        }
+        if (attachment.startsWith('http')) {
             return attachment;
         }
-        return `${process.env.BASE_URL}${attachment}`;
+        // Remove trailing slash from BASE_URL and add leading slash to path if needed
+        const baseUrl = process.env.BASE_URL.replace(/\/$/, '');
+        const path = attachment.startsWith('/') ? attachment : `/${attachment}`;
+        return `${baseUrl}${path}`;
     });
 });
 
