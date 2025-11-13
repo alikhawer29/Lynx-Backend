@@ -744,6 +744,286 @@ const cancelBooking = async (req, res) => {
 };
 
 
+// ============================
+// Reschedule Booking (Admin Only)
+// ============================
+const rescheduleBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { decoded } = req;
+        const { proposed_session_date, proposed_session_time, proposed_slot_id, reschedule_reason } = req.body;
+
+        // Validate required fields
+        if (!proposed_session_date || !proposed_session_time) {
+            throw new Error('Proposed session date and time are required');
+        }
+
+        // Find the booking
+        const booking = await Booking.findById(id)
+            .populate('user_id', 'first_name last_name email')
+            .populate('provider_id', 'first_name last_name email');
+
+        if (!booking) {
+            throw new Error('Booking not found');
+        }
+
+        // Check if booking can be rescheduled
+        if (booking.status === 'cancelled' || booking.status === 'refunded') {
+            throw new Error('Cannot reschedule a cancelled booking');
+        }
+
+        if (booking.status === 'completed') {
+            throw new Error('Cannot reschedule a completed booking');
+        }
+
+        if (booking.status === 'reschedule_pending') {
+            throw new Error('Booking already has a pending reschedule request');
+        }
+
+        // Validate proposed slot if provided
+        if (proposed_slot_id) {
+            const Slot = require('../models/slot.model');
+            const slot = await Slot.findById(proposed_slot_id);
+
+            if (!slot) {
+                throw new Error('Proposed slot not found');
+            }
+
+            if (slot.is_booked) {
+                throw new Error('Proposed slot is already booked');
+            }
+        }
+
+        // Store original values for notification
+        const originalDate = booking.session_date;
+        const originalTime = booking.session_time;
+
+        // Update booking with proposed reschedule details
+        booking.status = 'reschedule_pending';
+        booking.reschedule_requested = true;
+        booking.proposed_session_date = new Date(proposed_session_date);
+        booking.proposed_session_time = proposed_session_time;
+        booking.proposed_slot_id = proposed_slot_id || null;
+        booking.reschedule_reason = reschedule_reason || 'Admin requested reschedule';
+        booking.reschedule_response = 'pending';
+        booking.notes = `Reschedule requested by admin. Original: ${originalDate.toISOString().split('T')[0]} ${originalTime}. Proposed: ${proposed_session_date} ${proposed_session_time}`;
+
+        await booking.save();
+
+        // Send notification to user
+        const { sendNotification } = require('../helpers/notification');
+
+        sendNotification(
+            {
+                title: "Booking Reschedule Request",
+                body: `Your booking has been rescheduled to ${proposed_session_date} at ${proposed_session_time}. Please approve or reject.`,
+                data: {
+                    type: "booking_reschedule_request",
+                    booking_id: booking._id.toString(),
+                    proposed_date: proposed_session_date,
+                    proposed_time: proposed_session_time
+                }
+            },
+            booking.user_id._id,
+            false
+        );
+
+        return res.status(200).send({
+            success: true,
+            message: 'Booking reschedule request sent to user',
+            data: {
+                booking_id: booking._id,
+                booking_number: booking.booking_id,
+                status: booking.status,
+                original_session_date: originalDate,
+                original_session_time: originalTime,
+                proposed_session_date: booking.proposed_session_date,
+                proposed_session_time: booking.proposed_session_time,
+                reschedule_reason: booking.reschedule_reason,
+                reschedule_response: booking.reschedule_response,
+            },
+        });
+
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return res.status(400).send({
+            success: false,
+            message: e.message,
+        });
+    }
+};
+
+
+// ============================
+// User Response to Reschedule (Approve/Reject)
+// ============================
+const respondToReschedule = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { decoded } = req;
+        const { response, rejection_reason } = req.body;
+
+        // Validate response
+        if (!response || !['approved', 'rejected'].includes(response)) {
+            throw new Error('Response must be either "approved" or "rejected"');
+        }
+
+        if (response === 'rejected' && !rejection_reason) {
+            throw new Error('Rejection reason is required when rejecting reschedule');
+        }
+
+        // Find the booking
+        const booking = await Booking.findById(id)
+            .populate('user_id', 'first_name last_name email')
+            .populate('provider_id', 'first_name last_name email');
+
+        if (!booking) {
+            throw new Error('Booking not found');
+        }
+
+        // Check if user owns this booking
+        if (booking.user_id._id.toString() !== decoded.id) {
+            throw new Error('Unauthorized to respond to this reschedule request');
+        }
+
+        // Check if booking has a pending reschedule
+        if (booking.status !== 'reschedule_pending') {
+            throw new Error('No pending reschedule request for this booking');
+        }
+
+        if (booking.reschedule_response !== 'pending') {
+            throw new Error('Reschedule request has already been responded to');
+        }
+
+        const Slot = require('../models/slot.model');
+
+        if (response === 'approved') {
+            // User approved the reschedule
+
+            // Release old slot if exists
+            if (booking.slot_id) {
+                await Slot.findByIdAndUpdate(booking.slot_id, { is_booked: false });
+            }
+
+            // Book new slot if exists
+            if (booking.proposed_slot_id) {
+                const newSlot = await Slot.findById(booking.proposed_slot_id);
+                if (!newSlot) {
+                    throw new Error('Proposed slot not found');
+                }
+                if (newSlot.is_booked) {
+                    throw new Error('Proposed slot is no longer available');
+                }
+                await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: true });
+            }
+
+            // Update booking with new schedule
+            booking.session_date = booking.proposed_session_date;
+            booking.session_time = booking.proposed_session_time;
+            booking.slot_id = booking.proposed_slot_id;
+            booking.status = 'rescheduled';
+            booking.reschedule_response = 'approved';
+            booking.reschedule_responded_at = new Date();
+            booking.reschedule_count += 1;
+            booking.notes = `Reschedule approved by user. New schedule: ${booking.session_date.toISOString().split('T')[0]} ${booking.session_time}`;
+
+            // Clear proposed fields
+            booking.proposed_session_date = null;
+            booking.proposed_session_time = null;
+            booking.proposed_slot_id = null;
+
+            await booking.save();
+
+            // Notify admin and provider
+            const { sendNotification } = require('../helpers/notification');
+
+            sendNotification(
+                {
+                    title: "Reschedule Approved",
+                    body: `User approved the reschedule for booking ${booking.booking_id}`,
+                    data: {
+                        type: "reschedule_approved",
+                        booking_id: booking._id.toString()
+                    }
+                },
+                booking.provider_id?._id,
+                false
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: 'Reschedule approved successfully',
+                data: {
+                    booking_id: booking._id,
+                    booking_number: booking.booking_id,
+                    status: booking.status,
+                    session_date: booking.session_date,
+                    session_time: booking.session_time,
+                    reschedule_count: booking.reschedule_count,
+                },
+            });
+
+        } else {
+            // User rejected the reschedule
+
+            // Release proposed slot if it was reserved
+            if (booking.proposed_slot_id) {
+                await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: false });
+            }
+
+            booking.status = booking.status === 'pending' ? 'pending' : 'approved'; // Revert to previous status
+            booking.reschedule_response = 'rejected';
+            booking.reschedule_rejection_reason = rejection_reason;
+            booking.reschedule_responded_at = new Date();
+            booking.reschedule_requested = false;
+            booking.notes = `Reschedule rejected by user. Reason: ${rejection_reason}`;
+
+            // Clear proposed fields
+            booking.proposed_session_date = null;
+            booking.proposed_session_time = null;
+            booking.proposed_slot_id = null;
+
+            await booking.save();
+
+            // Notify admin and provider
+            const { sendNotification } = require('../helpers/notification');
+
+            sendNotification(
+                {
+                    title: "Reschedule Rejected",
+                    body: `User rejected the reschedule for booking ${booking.booking_id}. Reason: ${rejection_reason}`,
+                    data: {
+                        type: "reschedule_rejected",
+                        booking_id: booking._id.toString(),
+                        reason: rejection_reason
+                    }
+                },
+                booking.provider_id?._id,
+                false
+            );
+
+            return res.status(200).send({
+                success: true,
+                message: 'Reschedule rejected',
+                data: {
+                    booking_id: booking._id,
+                    booking_number: booking.booking_id,
+                    status: booking.status,
+                    rejection_reason: rejection_reason,
+                },
+            });
+        }
+
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return res.status(400).send({
+            success: false,
+            message: e.message,
+        });
+    }
+};
+
+
 module.exports = {
     createBooking,
     getBookings,
@@ -755,4 +1035,6 @@ module.exports = {
     getAppointmentManagement,
     rejectBooking,
     cancelBooking,
+    rescheduleBooking,
+    respondToReschedule,
 };

@@ -52,6 +52,22 @@ router.post(
     bookingController.cancelBooking
 );
 
+// Reschedule Booking (Admin Only)
+router.post(
+    '/reschedule/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.rescheduleBooking
+);
+
+// User Response to Reschedule (Approve/Reject)
+router.post(
+    '/reschedule-response/:id',
+    AuthVerifier,
+    RestrictAccess([ROLES.USER]),
+    bookingController.respondToReschedule
+);
+
 // ============================
 // Admin Appointment Management Routes
 // ============================

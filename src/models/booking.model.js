@@ -73,7 +73,7 @@ const bookingSchema = new mongoose.Schema(
         // Booking workflow
         status: {
             type: String,
-            enum: ["pending", "approved", "requested", "rejected", "completed", "cancelled", "refunded"],
+            enum: ["pending", "approved", "requested", "rejected", "completed", "cancelled", "refunded", "rescheduled", "reschedule_pending"],
             default: "pending",
         },
 
@@ -90,6 +90,27 @@ const bookingSchema = new mongoose.Schema(
         },
 
         notes: { type: String },
+
+        // Reschedule tracking
+        reschedule_requested: { type: Boolean, default: false },
+        reschedule_count: { type: Number, default: 0 },
+
+        // Proposed reschedule details (set by admin)
+        proposed_session_date: { type: Date },
+        proposed_session_time: { type: String },
+        proposed_slot_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Slot",
+        },
+        reschedule_reason: { type: String },
+
+        // User response to reschedule
+        reschedule_response: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+        },
+        reschedule_rejection_reason: { type: String },
+        reschedule_responded_at: { type: Date },
 
         // Reference to payment
         payment_id: {
