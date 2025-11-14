@@ -49,6 +49,7 @@ const createReview = async (req, res) => {
         const existingReview = await Review.findOne({
             user: decoded.id,
             service: bookingExists.service_id,
+            booking,
         });
 
         if (existingReview) {

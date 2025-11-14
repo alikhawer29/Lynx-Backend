@@ -12,7 +12,7 @@ dotenv.config();
 // ============================
 const createReport = async (req, res) => {
     try {
-        let { body, decoded, files } = req;
+        const { body, decoded, files } = req;
 
         // Validate required fields
         const validate = objectValidator(body);
@@ -20,44 +20,54 @@ const createReport = async (req, res) => {
             throw new Error(ERRORS.NULL_FIELD);
         }
 
-        const { service, reason, booking } = body;
+        const { reason, booking } = body;
 
-        // Check if service exists
-        const serviceExists = await Service.findById(service);
-        if (!serviceExists) {
-            throw new Error('Service not found');
-        }
+        console.log(body, 'body');
 
-        // If booking is provided, verify it belongs to the user
+        let bookingExists = null;
+        let serviceExists = null;
+
+        // 1️⃣ If booking exists → validate booking & service
         if (booking) {
-            const bookingExists = await Booking.findById(booking);
+            bookingExists = await Booking.findById(booking);
+
             if (!bookingExists) {
                 throw new Error('Booking not found');
             }
+
+            // Check if booking belongs to logged-in user
             if (bookingExists.user_id.toString() !== decoded.id) {
                 throw new Error('Unauthorized: This booking does not belong to you');
             }
+
+            // Fetch service
+            serviceExists = await Service.findById(bookingExists.service_id);
+            if (!serviceExists) {
+                throw new Error('Service not found');
+            }
         }
 
-        // Handle file attachments
+        // 2️⃣ Handle file attachments
         let attachments = [];
         if (files && files.length > 0) {
             attachments = files.map(file => file.path);
         }
 
+        // 3️⃣ Build payload
         const payload = {
             user: decoded.id,
-            service,
+            service: serviceExists ? serviceExists._id : null,
             reason,
             booking,
             attachments,
             status: 'pending',
         };
 
+        // 4️⃣ Create report
         const report = new Report(payload);
         await report.save();
 
-        // Populate user and service details
+        // 5️⃣ Populate referenced fields
         await report.populate([
             { path: 'user', select: 'first_name last_name email picture' },
             { path: 'service', select: 'name image' },
@@ -70,7 +80,7 @@ const createReport = async (req, res) => {
         });
 
     } catch (e) {
-        console.log('Error Message :: ', e);
+        console.log('Error Message :: ', e.message);
         return res.status(400).send({
             success: false,
             message: e.message,

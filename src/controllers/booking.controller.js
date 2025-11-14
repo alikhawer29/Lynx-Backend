@@ -193,7 +193,7 @@ const getBookingById = async (req, res) => {
                 { path: "user_id", select: "first_name last_name email picture certifications" },
                 { path: "service_id", select: "name price image" },
                 { path: "category_id", select: "name" },
-                { path: "provider_id", select: "first_name last_name email picture certifications" },
+                { path: "provider_id", select: "first_name last_name email picture certifications dialing_code phone" },
                 { path: "slot_id", select: "start_time end_time" },
             ])
             .lean({ virtuals: true });
@@ -201,6 +201,26 @@ const getBookingById = async (req, res) => {
         if (!booking) {
             throw new Error(ERRORS.NOT_FOUND);
         }
+
+        // Get reviews for this booking with user details
+        const Review = require('../models/review.model');
+        const reviews = await Review.find({ booking: id })
+            .populate({ path: 'user', select: 'first_name last_name email picture' })
+            .select('rating review createdAt')
+            .sort({ createdAt: -1 })
+            .lean({ virtuals: true });
+
+        // Check if this booking has been reported
+        const Report = require('../models/report.model');
+        const reportExists = await Report.findOne({
+            booking: id,
+            deleted: false
+        });
+
+        // Add reviews and report flag to booking data
+        booking.reviews = reviews;
+        booking.is_reported = !!reportExists;
+        booking.report_id = reportExists ? reportExists._id : null;
 
         return res.status(200).send({
             success: true,

@@ -1,8 +1,163 @@
 nohup: ignoring input
-(node:89038) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:209448) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:89038) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:209448) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
 Server started 🚀 Running on port 5000.
-(node:89038) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
-(node:89038) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:209448) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:209448) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
 Database connected successfully!
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [32m200[0m 964.838 ms - 2687[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [32m200[0m 1531.725 ms - 1447[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 736.636 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [32m200[0m 1454.016 ms - 32270[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [32m200[0m 909.654 ms - 2687[0m
+[0mGET /lynx/v1/api/service/get? [32m200[0m 360.129 ms - 1400[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 895.769 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [32m200[0m 1672.654 ms - 2687[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 1298.202 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 914.956 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 357.791 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 548.551 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 1681.447 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 498.007 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 768.647 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 317.494 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 497.214 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 488.051 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 499.397 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 527.231 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 503.258 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 494.422 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 517.166 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 308.547 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913267e2520bb3b01cccf4a [32m200[0m 391.632 ms - 1423[0m
+[0mGET /lynx/v1/api/booking/get/6913267e2520bb3b01cccf4a [36m304[0m 406.730 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913267e2520bb3b01cccf4a [36m304[0m 397.748 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913267e2520bb3b01cccf4a [36m304[0m 396.326 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913267e2520bb3b01cccf4a [36m304[0m 391.898 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 512.449 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 493.792 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 505.437 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 504.081 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 487.304 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 482.590 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 491.770 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 489.789 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 494.083 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 508.163 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 581.433 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 492.522 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 498.650 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 494.925 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 530.305 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 549.008 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 480.879 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 524.765 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 517.348 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 822.050 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 503.347 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 496.408 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 505.687 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 606.134 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 488.845 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 488.872 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 496.042 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 199.836 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 296.959 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 491.645 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 507.254 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 512.994 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 505.797 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 540.149 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 492.482 ms - -[0m
+[0mPOST /lynx/v1/api/booking/report/691333e12520bb3b01cccfba [33m404[0m 11.584 ms - 191[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [32m200[0m 296.124 ms - 32271[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 294.864 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [32m200[0m 402.197 ms - 1448[0m
+[0mGET /lynx/v1/api/review/get [32m200[0m 290.807 ms - 1004[0m
+[0mGET /lynx/v1/api/booking/get [32m200[0m 297.904 ms - 32271[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [32m200[0m 390.276 ms - 1448[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 385.438 ms - -[0m
+[0mPOST /lynx/v1/api/booking/review/6913303a2520bb3b01cccf98 [33m404[0m 1.247 ms - 191[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 301.148 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 393.708 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 399.916 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 196.910 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 298.657 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 502.308 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 397.937 ms - -[0m
+[0mPOST /lynx/v1/api/booking/report/create [33m404[0m 0.930 ms - 173[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 402.181 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 424.805 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 393.153 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 396.001 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 399.063 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 405.809 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 192.484 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 292.478 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 636.059 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [32m200[0m 491.316 ms - 2687[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 483.782 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 490.132 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 498.764 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 493.836 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 488.821 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 496.262 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 498.776 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 497.754 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 400.814 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 384.258 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 392.679 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 397.751 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 400.804 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 384.934 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [32m200[0m 394.123 ms - 1448[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 213.540 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 291.322 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 500.384 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 396.576 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 394.086 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 416.331 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 408.136 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 397.334 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 396.078 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 396.051 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 192.944 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 302.736 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [32m200[0m 392.617 ms - 1735[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [36m304[0m 421.571 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [36m304[0m 411.205 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [36m304[0m 413.417 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [36m304[0m 387.360 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6915b4481137b8c7483f0bda [36m304[0m 399.322 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 388.172 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 515.535 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 494.791 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 481.727 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 482.020 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 489.028 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 481.898 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 492.144 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 499.989 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/691333e12520bb3b01cccfba [36m304[0m 493.932 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 394.854 ms - -[0m
+[0mGET /lynx/v1/api/service/get? [36m304[0m 191.898 ms - -[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 304.400 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 396.748 ms - -[0m
+[0mPOST /lynx/v1/api/booking/report/create [33m404[0m 1.185 ms - 173[0m
+[0mPOST /lynx/v1/api/booking/review/create [33m404[0m 2.404 ms - 173[0m
+[0mGET /lynx/v1/api/booking/get?page=1&limit=10 [36m304[0m 322.242 ms - -[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [36m304[0m 445.507 ms - -[0m
+Error Message :: Error: You have already reviewed this service
+    at createReview (/var/www/html/Lynx-Backend/src/controllers/review.controller.js:55:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0mPOST /lynx/v1/api/review/create [33m400[0m 314.128 ms - 68[0m
+Error Message :: Error: You have already reviewed this service
+    at createReview (/var/www/html/Lynx-Backend/src/controllers/review.controller.js:55:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0mPOST /lynx/v1/api/review/create [33m400[0m 291.491 ms - 68[0m
+[0mGET /lynx/v1/api/booking/get/6913303a2520bb3b01cccf98 [32m200[0m 388.418 ms - 1448[0m
+Error Message :: Error: You have already reviewed this service
+    at createReview (/var/www/html/Lynx-Backend/src/controllers/review.controller.js:55:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[0mPOST /lynx/v1/api/review/create [33m400[0m 291.548 ms - 68[0m
