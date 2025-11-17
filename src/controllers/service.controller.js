@@ -188,37 +188,57 @@ const getService = (async (req, res) => {
     }
 })
 
-const getServiceById = (async (req, res) => {
+const getServiceById = async (req, res) => {
     try {
+        const { id } = req.params;
 
-        let { id } = req.params
+        const service = await Service.findById(id)
+            .populate([{ path: "category", select: "name price" }])
+            .lean({ virtuals: true });
 
-        let service = await Service.findById(id).populate([{ path: "category", select: "name price" }]).lean({ virtuals: true })
-        let reviews = await Review.find({ service: id }).populate({ path: "user", select: "name picture" }).lean()
-
-        service.reviews = reviews
-
-        let rating = 0;
-
-        if (reviews.length > 0) {
-            rating = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+        if (!service) {
+            return res.status(404).send({
+                success: false,
+                message: "Service not found"
+            });
         }
 
-        service.rating = parseFloat(rating.toFixed(1))
+        // Get reviews for this service
+        const Review = require('../models/review.model');
+        const reviews = await Review.find({ service: id })
+            .populate({ path: 'user', select: 'first_name last_name email picture' })
+            .select('rating review createdAt')
+            .sort({ createdAt: -1 })
+            .lean({ virtuals: true });
+
+        service.reviews = reviews;
+
+        // Calculate average rating and review count
+        const review_count = reviews.length;
+        let avg_rating = 0;
+
+        if (review_count > 0) {
+            avg_rating = reviews.reduce((sum, review) => sum + review.rating, 0) / review_count;
+            avg_rating = parseFloat(avg_rating.toFixed(1));
+        }
+
+        service.review_count = review_count;
+        service.avg_rating = avg_rating;
 
         return res.status(200).send({
             success: true,
             data: service
-        })
+        });
 
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return res.status(500).send({
             success: false,
-            message: e.message
-        })
+            message: error.message || "Internal server error"
+        });
     }
-})
+};
+
 
 const updateService = (async (req, res) => {
     try {

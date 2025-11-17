@@ -60,10 +60,10 @@ const createBooking = async (req, res) => {
 
             // Find matching slot where session_time falls within start_time and end_time
             const matchingSlot = slots.find(slot => {
-                const startHour = parseInt(slot.start_time.split(':')[0]);
-                const startMinute = parseInt(slot.start_time.split(':')[1] || '0');
-                const endHour = parseInt(slot.end_time.split(':')[0]);
-                const endMinute = parseInt(slot.end_time.split(':')[1] || '0');
+                const startHour = parseInt(slot?.start_time.split(':')[0]);
+                const startMinute = parseInt(slot?.start_time.split(':')[1] || '0');
+                const endHour = parseInt(slot?.end_time.split(':')[0]);
+                const endMinute = parseInt(slot?.end_time.split(':')[1] || '0');
 
                 const sessionTotalMinutes = sessionHour * 60 + sessionMinute;
                 const startTotalMinutes = startHour * 60 + startMinute;
@@ -216,6 +216,23 @@ const getBookingById = async (req, res) => {
             booking: id,
             deleted: false
         });
+
+        // Check if booking is in progress
+        // const now = new Date();
+        // const bookingDate = new Date(booking.session_date);
+        // const [startHour, startMin] = booking?.slot_id?.start_time.split(':');
+        // const [endHour, endMin] = booking?.slot_id?.end_time.split(':');
+        // const bookingStartTime = new Date(bookingDate);
+        // bookingStartTime.setHours(parseInt(startHour), parseInt(startMin), 0);
+
+        // const bookingEndTime = new Date(bookingDate);
+        // bookingEndTime.setHours(parseInt(endHour), parseInt(endMin), 0);
+
+        // // Update booking_status to 'in-progress' if current time is between start and end time
+        // console.log(now, 'now', bookingStartTime, 'start', bookingEndTime, 'end', booking.booking_status, 'status');
+        // if (now >= bookingStartTime && now <= bookingEndTime && booking.booking_status !== 'completed') {
+        //     booking.booking_status = 'in_progress';
+        // }
 
         // Add reviews and report flag to booking data
         booking.reviews = reviews;

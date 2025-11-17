@@ -89,6 +89,19 @@ slotSchema.virtual('time_range').get(function () {
     return `${this.start_time} - ${this.end_time}`;
 });
 
+slotSchema.virtual('time_range_new').get(function () {
+    const formatTime = (time) => {
+        if (!time) return '';
+        const [hours, minutes] = time.split(':');
+        const hour = parseInt(hours);
+        const period = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minutes} ${period}`;
+    };
+
+    return `${formatTime(this.start_time)} - ${formatTime(this.end_time)}`;
+});
+
 // --- Model export ---
 module.exports = mongoose.model("Slot", slotSchema);
 
