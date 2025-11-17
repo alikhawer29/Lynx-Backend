@@ -264,6 +264,52 @@ const getSlotsByDay = async (req, res) => {
 // ============================
 // Get Slots by Date
 // ============================
+// const getSlotsByDate = async (req, res) => {
+//     try {
+//         let { date } = req.params;
+//         let { service_id } = req.query;
+
+//         if (!date) {
+//             throw new Error('Date parameter is required');
+//         }
+
+//         // Parse the date and get the day of week
+//         const targetDate = new Date(date);
+//         if (isNaN(targetDate.getTime())) {
+//             throw new Error('Invalid date format. Use YYYY-MM-DD');
+//         }
+
+//         const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+//         const dayOfWeek = daysOfWeek[targetDate.getDay()];
+
+//         let filter = {
+//             day: dayOfWeek,
+//             is_active: true,
+//         };
+
+//         let slots = await Slot.find(filter)
+//             .sort({ start_time: 1 });
+
+//         // Add booking information to slots for this specific date
+//         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
+
+//         return res.status(200).send({
+//             success: true,
+//             date: date,
+//             day: dayOfWeek,
+//             total: slotsWithBooking.length,
+//             data: slotsWithBooking,
+//         });
+
+//     } catch (e) {
+//         console.log('Error Message :: ', e);
+//         return res.status(400).send({
+//             success: false,
+//             message: e.message,
+//         });
+//     }
+// };
+
 const getSlotsByDate = async (req, res) => {
     try {
         let { date } = req.params;
@@ -273,8 +319,10 @@ const getSlotsByDate = async (req, res) => {
             throw new Error('Date parameter is required');
         }
 
-        // Parse the date and get the day of week
-        const targetDate = new Date(date);
+        // Parse date without timezone conversion
+        const [year, month, day] = date.split('-').map(Number);
+        const targetDate = new Date(year, month - 1, day);
+
         if (isNaN(targetDate.getTime())) {
             throw new Error('Invalid date format. Use YYYY-MM-DD');
         }
@@ -309,7 +357,6 @@ const getSlotsByDate = async (req, res) => {
         });
     }
 };
-
 
 // ============================
 // Get Slot by ID
