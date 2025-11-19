@@ -121,7 +121,7 @@ const sendMessage = (async (req, res) => {
             throw new Error("Invalid Conversation")
         }
 
-        if (decoded.role === ROLES.EMPLOYEE && body?.message !== "Acknowledged") {
+        if (decoded.role === ROLES.USER && body?.message !== "Acknowledged") {
             throw new Error("Invalid Message")
         }
 

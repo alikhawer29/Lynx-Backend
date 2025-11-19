@@ -5,8 +5,8 @@ const conversationController = require('../controllers/conversation.controller')
 const { AuthVerifier, RestrictAccess } = require('../middlewares/auth.middleware')
 const { ROLES } = require('../utils')
 
-router.get('/get/:id', AuthVerifier, RestrictAccess([ROLES.MANAGER, ROLES.EMPLOYEE]), conversationController.getConversationById)
+router.get('/get/:id', AuthVerifier, RestrictAccess([ROLES.USER, ROLES.PROVIDER, ROLES.ADMIN]), conversationController.getConversationById)
 
-router.post('/message', AuthVerifier, RestrictAccess([ROLES.MANAGER, ROLES.EMPLOYEE]), conversationController.sendMessage)
+router.post('/message', AuthVerifier, RestrictAccess([ROLES.USER, ROLES.PROVIDER, ROLES.ADMIN]), conversationController.sendMessage)
 
 module.exports = router
