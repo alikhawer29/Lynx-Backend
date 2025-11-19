@@ -12,7 +12,18 @@ const createFeedback = (async (req, res) => {
             throw new Error(ERRORS.NULL_FIELD)
         }
 
-        let feedback = new Feedback(body)
+        const userId = req.decoded?.id || req.decoded?._id || null;
+
+        console.log(userId, 'userId')
+
+        // Add authenticated user ID if available
+        let feedbackData = {
+            ...body,
+            user_id: userId || null
+        };
+
+
+        let feedback = new Feedback(feedbackData);
 
         await feedback.save()
 
@@ -31,9 +42,8 @@ const createFeedback = (async (req, res) => {
     }
 })
 
-const getFeedback = (async (req, res) => {
+const getFeedback = async (req, res) => {
     try {
-
         let { page, per_page, search, from, to, sortBy } = req.query
 
         let options = paginationHandler(page, per_page)
@@ -54,14 +64,52 @@ const getFeedback = (async (req, res) => {
             sort = { [sortBy]: 1 }
         }
 
-        let feedbacks = await Feedback.find(filter, projection, options).populate({ path: "user", select: "name email picture" }).sort(sort)
+        let feedbacks = await Feedback.find(filter, projection, options)
+            .populate({
+                path: "user_id",
+                select: "name email picture role",
+                // Handle case where user might be deleted but feedback remains
+                options: { strictPopulate: false }
+            })
+            .sort(sort)
+            .lean() // Convert to plain JavaScript objects
 
         let total = await Feedback.countDocuments(filter)
+
+        // Transform data to include user type and handle guest users
+        const transformedFeedbacks = feedbacks.map(feedback => {
+            let userType = 'guest';
+            let userInfo = null;
+
+            if (feedback.user_id && typeof feedback.user_id === 'object') {
+                userType = feedback.user_id.role || 'user'; // Default to 'user' if role not set
+                userInfo = {
+                    name: feedback.user_id.name,
+                    email: feedback.user_id.email,
+                    picture: feedback.user_id.picture
+                }
+            } else if (feedback.user_id) {
+                // If user_id exists but population failed (user deleted)
+                userType = 'deleted_user';
+            }
+
+            return {
+                _id: feedback._id,
+                name: feedback.name,
+                email: feedback.email,
+                subject: feedback.subject,
+                message: feedback.message,
+                user_info: userInfo, // User details (null for guests)
+                user_type: userType, // 'guest', 'user', 'provider', or 'deleted_user'
+                createdAt: feedback.createdAt,
+                updatedAt: feedback.updatedAt
+            }
+        })
 
         res.status(200).send({
             success: true,
             total,
-            data: feedbacks
+            data: transformedFeedbacks
         })
 
     } catch (e) {
@@ -71,18 +119,57 @@ const getFeedback = (async (req, res) => {
             message: e.message
         })
     }
-})
+}
 
-const getFeedbackById = (async (req, res) => {
+const getFeedbackById = async (req, res) => {
     try {
-
         let id = req.params.id
 
         let feedback = await Feedback.findById(id)
+            .populate({
+                path: "user_id",
+                select: "name email picture role",
+                options: { strictPopulate: false }
+            })
+            .lean()
+
+        if (!feedback) {
+            return res.status(404).send({
+                success: false,
+                message: "Feedback not found"
+            })
+        }
+
+        // Determine user type
+        let userType = 'guest';
+        let userInfo = null;
+
+        if (feedback.user_id && typeof feedback.user_id === 'object') {
+            userType = feedback.user_id.role || 'user';
+            userInfo = {
+                name: feedback.user_id.name,
+                email: feedback.user_id.email,
+                picture: feedback.user_id.picture
+            }
+        } else if (feedback.user_id) {
+            userType = 'deleted_user';
+        }
+
+        const transformedFeedback = {
+            _id: feedback._id,
+            name: feedback.name,
+            email: feedback.email,
+            subject: feedback.subject,
+            message: feedback.message,
+            user_info: userInfo,
+            user_type: userType,
+            createdAt: feedback.createdAt,
+            updatedAt: feedback.updatedAt
+        }
 
         res.status(200).send({
             success: true,
-            data: feedback
+            data: transformedFeedback
         })
 
     } catch (e) {
@@ -92,7 +179,7 @@ const getFeedbackById = (async (req, res) => {
             message: e.message
         })
     }
-})
+}
 
 module.exports = {
     createFeedback,

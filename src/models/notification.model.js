@@ -2,12 +2,9 @@ const mongoose = require('mongoose')
 
 const notificationSchema = mongoose.Schema({
     notification: {
-        type: Object,
-        required: true
-    },
-    read: {
-        type: Boolean,
-        default: false
+        title: String,
+        body: String,
+        data: Object
     },
     recipients: [{
         type: mongoose.Schema.Types.ObjectId,
@@ -17,6 +14,22 @@ const notificationSchema = mongoose.Schema({
         type: Boolean,
         default: false
     },
-}, { timestamps: true })
+    for_admins: {
+        type: Boolean,
+        default: false
+    },
+    read: {
+        type: Boolean,
+        default: false
+    },
+    // Optional: Track which users have read this notification
+    read_by: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }]
+}, {
+    timestamps: true
+})
+
 
 module.exports = mongoose.model('Notification', notificationSchema)

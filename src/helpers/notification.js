@@ -57,7 +57,38 @@ const sendBulkNotification = (async (notification, ids = [], savable = true) => 
 
 })
 
+const sendStatusChangeNotification = async (user, newStatus, adminUser) => {
+    try {
+        const statusText = newStatus ? 'activated' : 'deactivated'
+        const adminName = adminUser?.name || 'Administrator'
+
+        const notification = {
+            title: `Account ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
+            body: `Your account has been ${statusText} by ${adminName}.`,
+            data: {
+                type: 'account_status_change',
+                user_id: user._id.toString(),
+                previous_status: !newStatus,
+                new_status: newStatus,
+                changed_by: adminUser?.id || 'system',
+                changed_at: new Date().toISOString(),
+                action: 'status_update'
+            }
+        }
+
+        // Send notification using your existing helper
+        await sendNotification(notification, user._id, true)
+
+        console.log(`Status change notification sent to user ${user.email}`)
+
+    } catch (error) {
+        console.error('Error sending status change notification:', error)
+        // Don't throw error - notification failure shouldn't break the main function
+    }
+}
+
 module.exports = {
     sendNotification,
-    sendBulkNotification
+    sendBulkNotification,
+    sendStatusChangeNotification
 }

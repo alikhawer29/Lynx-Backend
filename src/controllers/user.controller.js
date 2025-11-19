@@ -10,7 +10,7 @@ const {
     normalize,
 } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
-const { sendNotification } = require('../helpers/notification')
+const { sendNotification, sendStatusChangeNotification } = require('../helpers/notification')
 const { removeImage } = require('../helpers/image')
 
 const completeProfile = (async (req, res) => {
@@ -50,9 +50,8 @@ const completeProfile = (async (req, res) => {
     }
 })
 
-const getUser = (async (req, res) => {
+const getUser = async (req, res) => {
     try {
-
         let { page, per_page, role, search, from, to, sortBy, status, active } = req.query
 
         let options = paginationHandler(page, per_page)
@@ -60,11 +59,12 @@ const getUser = (async (req, res) => {
         let filter = {}
         let sort = {}
 
+        // Filter by role - if role is provided, use it; otherwise default to 'user'
         if (role && role !== 'undefined') {
-            filter = {
-                ...filter,
-                role
-            }
+            filter.role = role
+        } else {
+            // Default to showing only users with role 'user'
+            filter.role = 'user'
         }
 
         if (search) {
@@ -72,19 +72,15 @@ const getUser = (async (req, res) => {
         }
 
         if (status) {
-
             if (status === GENERAL_STATUS.PENDING) {
                 filter = {
                     ...filter,
                     status,
-                    details: {
-                        $exists: true
-                    }
+                    details: { $exists: true }
                 }
             } else {
                 filter = { ...filter, status }
             }
-
         }
 
         if (req?.query?.hasOwnProperty("active") && active != null) {
@@ -103,7 +99,9 @@ const getUser = (async (req, res) => {
             password: 0
         }
 
-        let users = await User.find(filter, projection, options).populate({ path: "manager", select: "name email company_name" }).sort(sort).lean()
+        let users = await User.find(filter, projection, options)
+            .sort(sort)
+            .lean()
 
         let total = await User.countDocuments(filter)
 
@@ -120,15 +118,14 @@ const getUser = (async (req, res) => {
             message: e.message
         })
     }
-})
+}
 
-const getUserById = (async (req, res) => {
+const getUserById = async (req, res) => {
     try {
-
         const { decoded, params } = req
         let { id } = params
 
-        let user = await User.findById(id).lean()
+        let user = await User.findById(id).select('-password').exec()
 
         return res.status(200).send({
             success: true,
@@ -142,7 +139,50 @@ const getUserById = (async (req, res) => {
             message: e.message
         })
     }
-})
+}
+
+const updateUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        // Find user and toggle status in one operation
+        const user = await User.findById(id)
+
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        const previousStatus = user.active
+        const newStatus = !previousStatus
+
+        // Toggle and save
+        user.active = newStatus
+        await user.save()
+
+        // Send notification to user
+        await sendStatusChangeNotification(user, newStatus, req.decoded)
+
+        // Convert to object and remove password
+        const userData = user.toObject()
+        delete userData.password
+
+        return res.status(200).send({
+            success: true,
+            message: `User ${newStatus ? 'activated' : 'deactivated'} successfully`,
+            data: userData
+        })
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        })
+    }
+}
 
 const updateUser = (async (req, res) => {
     try {
@@ -171,8 +211,8 @@ const updateUser = (async (req, res) => {
 
         let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
 
-        let active_subscription = await getCurrentSubscription(user?._id)
-        user.active_subscription = active_subscription
+        // let active_subscription = await getCurrentSubscription(user?._id)
+        // user.active_subscription = active_subscription
 
         // let conversation = await Conversation.findOne({ participants: { $in: [user._id] } }).select("_id")
         // user.conversation = conversation._id
@@ -293,9 +333,40 @@ const changePassword = (async (req, res) => {
     }
 })
 
-const getMyProfile = (async (req, res) => {
-    try {
+// const getMyProfile = (async (req, res) => {
+//     try {
 
+//         let { id } = req.decoded
+
+//         let projection = {
+//             password: 0,
+//             __v: 0
+//         }
+
+//         let user = await User.findById(id, projection).populate("manager").lean()
+
+//         let active_subscription = await getCurrentSubscription(user?._id)
+//         user.active_subscription = active_subscription
+
+//         let conversation = await Conversation.findOne({ participants: { $in: [user._id] } }).select("_id")
+//         user.conversation = conversation._id
+
+//         return res.status(200).send({
+//             success: true,
+//             data: user
+//         })
+
+//     } catch (e) {
+//         console.log("Error Message :: ", e)
+//         return res.status(400).send({
+//             success: false,
+//             message: e.message
+//         })
+//     }
+// })
+
+const getMyProfile = async (req, res) => {
+    try {
         let { id } = req.decoded
 
         let projection = {
@@ -303,13 +374,13 @@ const getMyProfile = (async (req, res) => {
             __v: 0
         }
 
-        let user = await User.findById(id, projection).populate("manager").lean()
+        let user = await User.findById(id, projection).lean({ virtuals: true })
 
-        let active_subscription = await getCurrentSubscription(user?._id)
-        user.active_subscription = active_subscription
+        // let active_subscription = await getCurrentSubscription(user?._id)
+        // user.active_subscription = active_subscription
 
         let conversation = await Conversation.findOne({ participants: { $in: [user._id] } }).select("_id")
-        user.conversation = conversation._id
+        user.conversation = conversation?._id || null
 
         return res.status(200).send({
             success: true,
@@ -323,7 +394,7 @@ const getMyProfile = (async (req, res) => {
             message: e.message
         })
     }
-})
+}
 
 const getHome = (async (req, res) => {
     try {
@@ -442,5 +513,6 @@ module.exports = {
     handleFavoriteServices,
     getFavoriteServices,
     handleStatus,
-    logout
+    logout,
+    updateUserStatus
 }

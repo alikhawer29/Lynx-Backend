@@ -17,7 +17,13 @@ const feedbackSchema = mongoose.Schema({
     message: {
         type: String,
         required: true
-    }
+    },
+    user_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        // No required: true, so it's nullable
+    },
+
 }, { timestamps: true })
 
 module.exports = mongoose.model('Feedback', feedbackSchema)
