@@ -16,6 +16,8 @@ const contentRoutes = require('./content.route')
 const reviewRoutes = require('./review.route')
 const reportRoutes = require('./report.route')
 const slotRoutes = require('./slot.route')
+const faqRoutes = require('./faq.route')
+
 
 router.use('/user', userRoutes)
 
@@ -46,5 +48,7 @@ router.use('/review', reviewRoutes)
 router.use('/report', reportRoutes)
 
 router.use('/slot', slotRoutes)
+
+router.use('/faq', faqRoutes)
 
 module.exports = router
