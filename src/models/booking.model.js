@@ -79,7 +79,7 @@ const bookingSchema = new mongoose.Schema(
 
         booking_status: {
             type: String,
-            enum: ["in_progress", "completed", "upcoming"],
+            enum: ["in_progress", "completed", "upcoming", "past"],
             default: "upcoming",
         },
 

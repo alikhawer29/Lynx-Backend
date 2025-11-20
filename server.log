@@ -1,41 +1,22 @@
 nohup: ignoring input
-(node:298179) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:680748) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:298179) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
-(node:298179) [MONGOOSE] Warning: Duplicate schema index on {"booking_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
-(node:298179) [MONGOOSE] Warning: Duplicate schema index on {"status":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
-(node:298179) [MONGOOSE] Warning: Duplicate schema index on {"user_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:680748) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:680748) [MONGOOSE] Warning: Duplicate schema index on {"booking_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:680748) [MONGOOSE] Warning: Duplicate schema index on {"status":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:680748) [MONGOOSE] Warning: Duplicate schema index on {"user_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 Server started 🚀 Running on port 5000.
-(node:298179) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
-(node:298179) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:680748) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:680748) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
 Database connected successfully!
-[0mPOST /lynx/v1/api/chat/support [32m201[0m 421.327 ms - 1060[0m
-[0mGET /lynx/v1/api/chat/user-chats?page=1&per_page=20 [32m200[0m 299.110 ms - 1370[0m
-[0mGET /lynx/v1/api/chat/user-chats?page=1&per_page=20 [32m200[0m 298.758 ms - 1370[0m
-[0mPOST /lynx/v1/api/chat/messages/send [32m201[0m 402.319 ms - 950[0m
-[0mGET /lynx/v1/api/chat/user-chats?page=1&per_page=20 [32m200[0m 299.935 ms - 1696[0m
-[0mGET /lynx/v1/api/chat/messages/691ee54cc207f5cdfc7aa46c [32m200[0m 408.479 ms - 983[0m
-[0mPOST /lynx/v1/api/chat/messages/send [31m500[0m 4.917 ms - 1183[0m
-MulterError: Unexpected field
-    at wrappedFileFilter (/var/www/html/Lynx-Backend/node_modules/multer/index.js:40:19)
-    at Multipart.<anonymous> (/var/www/html/Lynx-Backend/node_modules/multer/lib/make-middleware.js:107:7)
-    at Multipart.emit (node:events:515:28)
-    at HeaderParser.cb (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:358:14)
-    at HeaderParser.push (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:162:20)
-    at SBMH.ssCb [as _cb] (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:394:37)
-    at feed (/var/www/html/Lynx-Backend/node_modules/streamsearch/lib/sbmh.js:200:10)
-    at SBMH.push (/var/www/html/Lynx-Backend/node_modules/streamsearch/lib/sbmh.js:104:16)
-    at Multipart._write (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:567:19)
-    at writeOrBuffer (node:internal/streams/writable:556:12)
-[0mPOST /lynx/v1/api/chat/messages/send [31m500[0m 7.405 ms - 1183[0m
-MulterError: Unexpected field
-    at wrappedFileFilter (/var/www/html/Lynx-Backend/node_modules/multer/index.js:40:19)
-    at Multipart.<anonymous> (/var/www/html/Lynx-Backend/node_modules/multer/lib/make-middleware.js:107:7)
-    at Multipart.emit (node:events:515:28)
-    at HeaderParser.cb (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:358:14)
-    at HeaderParser.push (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:162:20)
-    at SBMH.ssCb [as _cb] (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:394:37)
-    at feed (/var/www/html/Lynx-Backend/node_modules/streamsearch/lib/sbmh.js:248:10)
-    at SBMH.push (/var/www/html/Lynx-Backend/node_modules/streamsearch/lib/sbmh.js:104:16)
-    at Multipart._write (/var/www/html/Lynx-Backend/node_modules/busboy/lib/types/multipart.js:567:19)
-    at writeOrBuffer (node:internal/streams/writable:556:12)
+Socket Connection Successfully Created 8A2RynSMYMU7Ry9WAAAB 690b2204e97e502f5a07a7ca
+User 690b2204e97e502f5a07a7ca connected with socket 8A2RynSMYMU7Ry9WAAAB
+✅ Booking status cron job started (runs every 5 minutes)
+[CRON] Running booking status update at 2025-11-20T15:52:31.098Z
+[CRON] Booking 24: Start=2025-11-18T16:00:00.000Z, End=2025-11-18T17:00:00.000Z, Now=2025-11-20T15:52:31.098Z, Status=completed
+[CRON] Booking 26: Start=2025-11-20T12:00:00.000Z, End=2025-11-20T13:00:00.000Z, Now=2025-11-20T15:52:31.098Z, Status=upcoming
+[CRON] Summary: 0 → in_progress, 0 → past
+[CRON] Running booking status update at 2025-11-20T15:53:00.059Z
+[CRON] Booking 24: Start=2025-11-18T16:00:00.000Z, End=2025-11-18T17:00:00.000Z, Now=2025-11-20T15:53:00.059Z, Status=completed
+[CRON] Booking 26: Start=2025-11-20T12:00:00.000Z, End=2025-11-20T13:00:00.000Z, Now=2025-11-20T15:53:00.059Z, Status=upcoming
+[CRON] Summary: 0 → in_progress, 0 → past
