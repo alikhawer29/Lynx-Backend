@@ -256,8 +256,16 @@ const getUserChats = async (req, res) => {
                 ? chat.unread_count.get(userId)
                 : (chat.unread_count?.[userId] || 0);
 
+            // Determine if chat is active
+            const isChatActive =
+                chat.chat_type === 'appointment' &&
+                    chat.booking_id?.status === 'completed'
+                    ? false
+                    : true;
+
             return {
                 ...chat,
+                is_chat_active: isChatActive,
                 my_unread_count: unreadCount,
                 other_user: chat.user_id._id.toString() === userId ? chat.other_user_id : chat.user_id,
             };
