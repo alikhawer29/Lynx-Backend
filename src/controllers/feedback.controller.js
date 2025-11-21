@@ -1,5 +1,7 @@
-const Feedback = require('../models/feedback.model')
-const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery } = require('../utils')
+const Feedback = require('../models/feedback.model');
+const User = require('../models/user.model');
+const Notification = require('../models/notification.model');
+const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES } = require('../utils');
 
 const createFeedback = (async (req, res) => {
     try {
@@ -25,13 +27,39 @@ const createFeedback = (async (req, res) => {
 
         let feedback = new Feedback(feedbackData);
 
-        await feedback.save()
+        await feedback.save();
+
+        // Send database notification to admin (for web)
+        try {
+            const admins = await User.find({ role: ROLES.ADMIN });
+            const adminIds = admins.map(admin => admin._id);
+
+            if (adminIds.length > 0) {
+                const notification = new Notification({
+                    notification: {
+                        title: '💬 New Feedback Received',
+                        body: `${feedbackData.name} (${feedbackData.email}) submitted feedback: ${feedbackData.subject}`,
+                        data: {
+                            type: 'new_feedback',
+                            feedback_id: feedback._id.toString(),
+                            user_id: userId,
+                            subject: feedbackData.subject,
+                        },
+                    },
+                    recipients: adminIds,
+                });
+                await notification.save();
+                console.log(`✅ Feedback notification sent to ${adminIds.length} admins`);
+            }
+        } catch (error) {
+            console.error('❌ Error sending feedback notification:', error);
+        }
 
         return res.status(200).send({
             success: true,
             message: "Feedback Successfully Saved",
             data: feedback
-        })
+        });
 
     } catch (e) {
         console.log("Error Message :: ", e)

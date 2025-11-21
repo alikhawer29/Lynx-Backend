@@ -3,6 +3,7 @@ const Review = require('../models/review.model');
 const Service = require('../models/service.model');
 const Booking = require('../models/booking.model');
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES } = require('../utils');
+const { sendFeedbackToAdminNotification } = require('../helpers/bookingNotification');
 
 dotenv.config();
 
@@ -72,9 +73,18 @@ const createReview = async (req, res) => {
         await updateServiceRating(bookingExists.service_id);
 
         // ✅ Populate user details before returning
-        await newReview.populate({
-            path: 'user',
-            select: 'first_name last_name picture email'
+        await newReview.populate([
+            { path: 'user', select: 'first_name last_name picture email' },
+            { path: 'booking', select: 'booking_id' },
+        ]);
+
+        // ✅ Send notification to admin (database notification for web)
+        sendFeedbackToAdminNotification({
+            user: newReview.user,
+            booking: newReview.booking,
+            rating: newReview.rating,
+            review_text: newReview.review,
+            type: 'review',
         });
 
         return res.status(200).send({

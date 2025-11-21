@@ -28,12 +28,21 @@ const TASK_STATUS = {
     COMPLETED: "completed",
 }
 
+// Booking Status Constants
 const BOOKING_STATUS = {
+    // Status: Overall booking state
     PENDING: "pending",
-    ACCEPTED: "accepted",
-    PAID: "paid",
-    ACTIVE: "active",
-    COMPLETED: "completed"
+    APPROVED: "approved",
+    REQUESTED: "requested",
+    REJECTED: "rejected",
+    CANCELLED: "cancelled",
+}
+
+const BOOKING_TIME_STATUS = {
+    // Booking Status: Time-based state (managed by cron job)
+    UPCOMING: "upcoming",
+    IN_PROGRESS: "in_progress",
+    PAST: "past",
 }
 
 const MESSAGE_STATUS = {
@@ -323,6 +332,7 @@ module.exports = {
     ENUM_AUTH_TYPES,
     ENUM_MEDIA_TYPES,
     ENUM_PUSH_USER_TYPES,
+    BOOKING_TIME_STATUS,
     generateOTP,
     paginationHandler,
     objectValidator,
@@ -336,4 +346,4 @@ module.exports = {
     getFileType,
     getOrdinal,
     normalize
-}; 
+};

@@ -14,6 +14,14 @@ const {
 } = require('../utils');
 const getNextSequence = require('../helpers/getNextSequence');
 const response = require('../utils/response');
+const {
+    sendBookingCreatedNotifications,
+    sendBookingRejectedNotifications,
+    sendBookingRescheduledNotifications,
+    sendProviderAssignedNotifications,
+    sendBookingCancelledNotifications,
+    sendRescheduleResponseNotifications,
+} = require('../helpers/bookingNotification');
 
 dotenv.config();
 
@@ -84,6 +92,15 @@ const createBooking = async (req, res) => {
         const booking = new Booking(payload);
         await booking.save();
 
+        // Populate for notifications
+        await booking.populate([
+            { path: 'user_id', select: 'first_name last_name email' },
+            { path: 'service_id', select: 'name price' },
+        ]);
+
+        // Send notifications
+        sendBookingCreatedNotifications(booking);
+
         return res.status(200).send({
             success: true,
             message: "Booking Successfully Created",
@@ -107,7 +124,7 @@ const createBooking = async (req, res) => {
 const getBookings = async (req, res) => {
     try {
         const { decoded, query } = req;
-        const { page, per_page, search, from, to, sortBy, status } = query;
+        const { page, per_page, search, from, to, sortBy, status, booking_status } = query;
 
         const options = paginationHandler(page, per_page);
         // let filter = {payment_status: 'paid'};
@@ -132,6 +149,9 @@ const getBookings = async (req, res) => {
 
         if (status) {
             filter.status = status;
+        }
+        if (booking_status) {
+            filter.booking_status = booking_status;
         }
 
         if (sortBy) {
@@ -361,6 +381,9 @@ const assignProvider = async (req, res) => {
             { path: 'slot_id' },
         ]);
 
+        // Send notifications
+        sendProviderAssignedNotifications(booking);
+
         return res.status(200).send({
             success: true,
             message: 'Provider assigned successfully',
@@ -576,7 +599,11 @@ const rejectBooking = async (req, res) => {
         const { id } = req.params;
         const { rejection_reason } = req.body;
 
-        const booking = await Booking.findById(id);
+        const booking = await Booking.findById(id)
+            .populate('user_id', 'first_name last_name email')
+            .populate('provider_id', 'first_name last_name email')
+            .populate('service_id', 'name');
+
         if (!booking) {
             throw new Error('Booking not found');
         }
@@ -587,6 +614,9 @@ const rejectBooking = async (req, res) => {
         }
 
         await booking.save();
+
+        // Send notifications
+        sendBookingRejectedNotifications(booking);
 
         return res.status(200).send({
             success: true,
@@ -616,7 +646,8 @@ const cancelBooking = async (req, res) => {
         // Find the booking
         const booking = await Booking.findById(id)
             .populate('user_id', 'first_name last_name email stripe_customer_id')
-            .populate('provider_id', 'first_name last_name email');
+            .populate('provider_id', 'first_name last_name email')
+            .populate('service_id', 'name');
 
         if (!booking) {
             throw new Error('Booking not found');
@@ -628,12 +659,12 @@ const cancelBooking = async (req, res) => {
         }
 
         // Check if booking can be cancelled
-        if (booking.status === 'cancelled' || booking.status === 'refunded') {
+        if (booking.status === 'cancelled') {
             throw new Error('Booking is already cancelled');
         }
 
-        if (booking.status === 'completed') {
-            throw new Error('Cannot cancel a completed booking');
+        if (booking.booking_status === 'past') {
+            throw new Error('Cannot cancel a past booking');
         }
 
         // Check if payment exists and was paid
@@ -725,40 +756,20 @@ const cancelBooking = async (req, res) => {
             );
         }
 
-        // Send notifications
-        const { sendNotification } = require('../helpers/notification');
+        // Determine who cancelled (user or provider)
+        const cancelledBy = decoded.role === ROLES.PROVIDER ? 'provider' : 'user';
 
-        // Notify user
-        sendNotification(
+        // Send comprehensive notifications with refund info
+        sendBookingCancelledNotifications(
+            booking,
+            cancelledBy,
+            cancellation_reason || 'User requested cancellation',
             {
-                title: "Booking Cancelled",
-                body: `Your booking has been cancelled. Refund amount: $${refundAmount.toFixed(2)}`,
-                data: {
-                    type: "booking_cancelled",
-                    booking_id: booking._id.toString(),
-                    refund_amount: refundAmount
-                }
-            },
-            booking.user_id._id,
-            false
+                refundAmount,
+                refundType,
+                providerCompensation,
+            }
         );
-
-        // Notify provider if assigned
-        if (booking.provider_id) {
-            sendNotification(
-                {
-                    title: "Booking Cancelled",
-                    body: `Booking ${booking.booking_id} has been cancelled${providerCompensation > 0 ? `. Compensation: $${providerCompensation.toFixed(2)}` : ''}`,
-                    data: {
-                        type: "booking_cancelled",
-                        booking_id: booking._id.toString(),
-                        compensation: providerCompensation
-                    }
-                },
-                booking.provider_id._id,
-                false
-            );
-        }
 
         return res.status(200).send({
             success: true,
@@ -810,15 +821,15 @@ const rescheduleBooking = async (req, res) => {
         }
 
         // Check if booking can be rescheduled
-        if (booking.status === 'cancelled' || booking.status === 'refunded') {
+        if (booking.status === 'cancelled') {
             throw new Error('Cannot reschedule a cancelled booking');
         }
 
-        if (booking.status === 'completed') {
-            throw new Error('Cannot reschedule a completed booking');
+        if (booking.booking_status === 'past') {
+            throw new Error('Cannot reschedule a past booking');
         }
 
-        if (booking.status === 'reschedule_pending') {
+        if (booking.reschedule_requested && booking.reschedule_response === 'pending') {
             throw new Error('Booking already has a pending reschedule request');
         }
 
@@ -840,8 +851,7 @@ const rescheduleBooking = async (req, res) => {
         const originalDate = booking.session_date;
         const originalTime = booking.session_time;
 
-        // Update booking with proposed reschedule details
-        booking.status = 'reschedule_pending';
+        // Update booking with proposed reschedule details (keep status as approved)
         booking.reschedule_requested = true;
         booking.proposed_session_date = new Date(proposed_session_date);
         booking.proposed_session_time = proposed_session_time;
@@ -852,23 +862,8 @@ const rescheduleBooking = async (req, res) => {
 
         await booking.save();
 
-        // Send notification to user
-        const { sendNotification } = require('../helpers/notification');
-
-        sendNotification(
-            {
-                title: "Booking Reschedule Request",
-                body: `Your booking has been rescheduled to ${proposed_session_date} at ${proposed_session_time}. Please approve or reject.`,
-                data: {
-                    type: "booking_reschedule_request",
-                    booking_id: booking._id.toString(),
-                    proposed_date: proposed_session_date,
-                    proposed_time: proposed_session_time
-                }
-            },
-            booking.user_id._id,
-            false
-        );
+        // Send comprehensive reschedule notifications
+        sendBookingRescheduledNotifications(booking);
 
         return res.status(200).send({
             success: true,
@@ -929,7 +924,7 @@ const respondToReschedule = async (req, res) => {
         }
 
         // Check if booking has a pending reschedule
-        if (booking.status !== 'reschedule_pending') {
+        if (!booking.reschedule_requested || booking.reschedule_response !== 'pending') {
             throw new Error('No pending reschedule request for this booking');
         }
 
@@ -959,14 +954,14 @@ const respondToReschedule = async (req, res) => {
                 await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: true });
             }
 
-            // Update booking with new schedule
+            // Update booking with new schedule (keep status as approved)
             booking.session_date = booking.proposed_session_date;
             booking.session_time = booking.proposed_session_time;
             booking.slot_id = booking.proposed_slot_id;
-            booking.status = 'rescheduled';
             booking.reschedule_response = 'approved';
             booking.reschedule_responded_at = new Date();
             booking.reschedule_count += 1;
+            booking.reschedule_requested = false; // Clear reschedule flag
             booking.notes = `Reschedule approved by user. New schedule: ${booking.session_date.toISOString().split('T')[0]} ${booking.session_time}`;
 
             // Clear proposed fields
@@ -976,21 +971,8 @@ const respondToReschedule = async (req, res) => {
 
             await booking.save();
 
-            // Notify admin and provider
-            const { sendNotification } = require('../helpers/notification');
-
-            sendNotification(
-                {
-                    title: "Reschedule Approved",
-                    body: `User approved the reschedule for booking ${booking.booking_id}`,
-                    data: {
-                        type: "reschedule_approved",
-                        booking_id: booking._id.toString()
-                    }
-                },
-                booking.provider_id?._id,
-                false
-            );
+            // Send comprehensive reschedule response notifications
+            sendRescheduleResponseNotifications(booking, 'approved');
 
             return res.status(200).send({
                 success: true,
@@ -1027,22 +1009,8 @@ const respondToReschedule = async (req, res) => {
 
             await booking.save();
 
-            // Notify admin and provider
-            const { sendNotification } = require('../helpers/notification');
-
-            sendNotification(
-                {
-                    title: "Reschedule Rejected",
-                    body: `User rejected the reschedule for booking ${booking.booking_id}. Reason: ${rejection_reason}`,
-                    data: {
-                        type: "reschedule_rejected",
-                        booking_id: booking._id.toString(),
-                        reason: rejection_reason
-                    }
-                },
-                booking.provider_id?._id,
-                false
-            );
+            // Send comprehensive reschedule response notifications
+            sendRescheduleResponseNotifications(booking, 'rejected');
 
             return res.status(200).send({
                 success: true,

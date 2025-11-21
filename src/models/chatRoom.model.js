@@ -97,8 +97,30 @@ const chatRoomSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
+
+// --- Virtual Fields ---
+// is_chat_active: For appointment chats, active only when booking is in_progress
+// For support chats, always active
+chatRoomSchema.virtual('is_chat_active').get(function () {
+    if (this.chat_type === 'support') {
+        return this.is_active;
+    }
+
+    if (this.chat_type === 'appointment') {
+        // If booking is populated, check its booking_status
+        if (this.booking_id && typeof this.booking_id === 'object' && this.booking_id.booking_status) {
+            return this.booking_id.booking_status === 'in_progress' && this.is_active;
+        }
+        // If booking is not populated, we can't determine, so return is_active
+        return this.is_active;
+    }
+
+    return this.is_active;
+});
 
 // --- Plugins ---
 chatRoomSchema.plugin(mongooseLeanVirtuals);

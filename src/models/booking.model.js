@@ -71,15 +71,17 @@ const bookingSchema = new mongoose.Schema(
         session_time: { type: String, required: true },
 
         // Booking workflow
+        // Status: Overall booking state
         status: {
             type: String,
-            enum: ["pending", "approved", "requested", "rejected", "completed", "cancelled", "refunded", "rescheduled", "reschedule_pending"],
+            enum: ["pending", "approved", "requested", "rejected", "cancelled"],
             default: "pending",
         },
 
+        // Booking Status: Time-based state (managed by cron job)
         booking_status: {
             type: String,
-            enum: ["in_progress", "completed", "upcoming", "past"],
+            enum: ["upcoming", "in_progress", "past"],
             default: "upcoming",
         },
 

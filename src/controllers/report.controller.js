@@ -4,6 +4,7 @@ const Service = require('../models/service.model');
 const Booking = require('../models/booking.model');
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES } = require('../utils');
 const { sendNotification } = require('../helpers/notification');
+const { sendReportToAdminNotification } = require('../helpers/bookingNotification');
 
 dotenv.config();
 
@@ -71,7 +72,16 @@ const createReport = async (req, res) => {
         await report.populate([
             { path: 'user', select: 'first_name last_name email picture' },
             { path: 'service', select: 'name image' },
+            { path: 'booking', select: 'booking_id' },
         ]);
+
+        // 6️⃣ Send notification to admin (database notification for web)
+        sendReportToAdminNotification({
+            user: report.user,
+            booking: report.booking,
+            report_reason: report.reason,
+            report_description: body.description || '',
+        });
 
         return res.status(200).send({
             success: true,

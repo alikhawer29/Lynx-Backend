@@ -1,14 +1,19 @@
 const cron = require('node-cron');
 const Booking = require('../models/booking.model');
 const Slot = require('../models/slot.model');
+const { sendBookingStatusChangeNotifications } = require('../helpers/bookingNotification');
 
 /**
  * Cron Job: Update Booking Status Based on Date/Time
- * 
+ *
  * Logic:
- * 1. If booking is approved and session_date + session_time has started → booking_status = 'in_progress'
- * 2. If booking is in_progress and session has ended (after 1 hour) → booking_status = 'completed', status = 'completed'
- * 
+ * 1. If booking is approved and session has started → booking_status = 'in_progress'
+ * 2. If booking is in_progress and session has ended → booking_status = 'past'
+ *
+ * Status values:
+ * - status: pending, approved, requested, rejected, cancelled
+ * - booking_status: upcoming, in_progress, past
+ *
  * Runs every 5 minutes
  */
 
@@ -19,7 +24,7 @@ const updateBookingStatuses = async () => {
 
         // Find all approved bookings that are not past
         const bookings = await Booking.find({
-            status: { $in: ['approved', 'rescheduled'] },
+            status: 'approved',
             booking_status: { $ne: 'past' },
             deleted: false,
         }).populate('slot_id');
@@ -58,6 +63,17 @@ const updateBookingStatuses = async () => {
                 if (now >= sessionStart && now < sessionEnd && booking.booking_status === 'upcoming') {
                     booking.booking_status = 'in_progress';
                     await booking.save();
+
+                    // Populate for notifications
+                    await booking.populate([
+                        { path: 'user_id', select: 'first_name last_name email' },
+                        { path: 'provider_id', select: 'first_name last_name email' },
+                        { path: 'service_id', select: 'name' },
+                    ]);
+
+                    // Send notifications
+                    sendBookingStatusChangeNotifications(booking, 'in_progress');
+
                     updatedToInProgress++;
                     console.log(`[CRON] ✅ Booking ${booking.booking_id} → in_progress`);
                 }
@@ -65,10 +81,21 @@ const updateBookingStatuses = async () => {
                 // Check if session has ended
                 if (now >= sessionEnd && booking.booking_status === 'in_progress') {
                     booking.booking_status = 'past';
-                    booking.status = 'completed';
+                    // Keep status as 'approved' - booking_status handles time-based state
                     await booking.save();
+
+                    // Populate for notifications
+                    await booking.populate([
+                        { path: 'user_id', select: 'first_name last_name email' },
+                        { path: 'provider_id', select: 'first_name last_name email' },
+                        { path: 'service_id', select: 'name' },
+                    ]);
+
+                    // Send notifications
+                    sendBookingStatusChangeNotifications(booking, 'past');
+
                     updatedToPast++;
-                    console.log(`[CRON] ✅ Booking ${booking.booking_id} → past (completed)`);
+                    console.log(`[CRON] ✅ Booking ${booking.booking_id} → past`);
                 }
 
             } catch (error) {
