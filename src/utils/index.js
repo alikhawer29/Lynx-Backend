@@ -144,6 +144,57 @@ const paginationHandler = (page, per_page) => {
 
 }
 
+function paginateResponse({ page, per_page, total, baseUrl, data }) {
+
+    page = Number(page);
+    per_page = Number(per_page);
+    const last_page = Math.ceil(total / per_page);
+
+    // Build links array (Laravel style)
+    let links = [];
+
+    // Previous Link
+    links.push({
+        url: page > 1 ? `${baseUrl}?page=${page - 1}` : null,
+        label: "&laquo; Previous",
+        active: false
+    });
+
+    // Page number links
+    for (let i = 1; i <= last_page && i <= 10; i++) {
+        links.push({
+            url: `${baseUrl}?page=${i}`,
+            label: `${i}`,
+            active: i === page
+        });
+    }
+
+    // Next Link
+    links.push({
+        url: page < last_page ? `${baseUrl}?page=${page + 1}` : null,
+        label: "Next &raquo;",
+        active: false
+    });
+
+    return {
+        current_page: page,
+        data,
+        first_page_url: `${baseUrl}?page=1`,
+        from: (page - 1) * per_page + 1,
+        last_page,
+        last_page_url: `${baseUrl}?page=${last_page}`,
+        links,
+        next_page_url: page < last_page ? `${baseUrl}?page=${page + 1}` : null,
+        path: baseUrl,
+        per_page,
+        prev_page_url: page > 1 ? `${baseUrl}?page=${page - 1}` : null,
+        to: (page - 1) * per_page + data.length,
+        total
+    };
+}
+
+
+
 const objectValidator = (object) => {
 
     if (object) {
@@ -345,5 +396,6 @@ module.exports = {
     getRange,
     getFileType,
     getOrdinal,
-    normalize
+    normalize,
+    paginateResponse
 };

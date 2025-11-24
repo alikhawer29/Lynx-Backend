@@ -111,6 +111,11 @@ const userSchema = mongoose.Schema({
         default: false
     },
 
+    reject_reason: {
+        type: String,
+        default: null
+    },
+
     // Provider services (what services they can provide)
     provider_services: [{
         type: mongoose.Schema.Types.ObjectId,

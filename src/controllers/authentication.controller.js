@@ -120,6 +120,7 @@ const login = (async (req, res) => {
             throw new Error(ERRORS.INVALID_CREDENTIALS)
         }
 
+
         let validPassword = await comparePassword(password, userExist.password)
 
         if (!validPassword) {
@@ -134,9 +135,16 @@ const login = (async (req, res) => {
 
         let activeUser = userExist.active
 
+
+        if (userExist.role === ROLES.PROVIDER && !userExist.is_verified) {
+            throw new Error("Your profile is pending admin approval");
+        }
+
         if (!activeUser) {
             throw new Error(ERRORS.BLOCKEDBY_ADMIN)
         }
+
+
 
         let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
 
@@ -215,10 +223,6 @@ const signup = (async (req, res) => {
 
         // Handle provider certifications
         if (role === ROLES.PROVIDER) {
-            // Debug: Log all body keys to see what we're receiving
-            console.log('Body keys:', Object.keys(body))
-            console.log('Files map keys:', Object.keys(filesMap))
-
             // Build certifications array from form fields
             let certifications = []
 
@@ -271,15 +275,16 @@ const signup = (async (req, res) => {
                 }
             }
 
-            console.log('Certifications found:', certifications.length)
-            console.log('Certifications data:', JSON.stringify(certifications, null, 2))
-
             if (certifications.length === 0) {
                 throw new Error("Service providers must provide at least one certification")
             }
 
             payload.certifications = certifications
-            payload.is_verified = false // Providers need admin verification
+
+            if (role === ROLES.PROVIDER) {
+                payload.is_verified = false; // Providers need admin approval
+                payload.active = false; // Admin can activate later
+            }
 
             // Remove the individual certification fields from payload
             Object.keys(payload).forEach(key => {

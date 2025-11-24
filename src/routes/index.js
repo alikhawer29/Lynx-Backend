@@ -19,6 +19,9 @@ const slotRoutes = require('./slot.route')
 const faqRoutes = require('./faq.route')
 const chatRoutes = require('./chat.route')
 
+const adminServiceRoutes = require('./Admin/service.route')
+const adminCategoryRoutes = require('./Admin/category.route')
+const adminContentRoutes = require('./Admin/content.route')
 
 router.use('/user', userRoutes)
 
@@ -37,6 +40,12 @@ router.use('/notification', notificationRoutes)
 router.use('/package', packageRoutes)
 
 router.use('/service', serviceRoutes)
+
+router.use('/admin/service', adminServiceRoutes)
+
+router.use('/admin/category', adminCategoryRoutes)
+
+router.use('/admin/content', adminContentRoutes)
 
 router.use('/booking', bookingRoutes)
 

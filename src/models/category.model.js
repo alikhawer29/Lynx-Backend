@@ -1,4 +1,8 @@
 const mongoose = require('mongoose')
+const mongooseLeanVirtuals = require('mongoose-lean-virtuals')
+const dotenv = require('dotenv')
+
+dotenv.config()
 
 const categorySchema = mongoose.Schema({
     name: {
@@ -26,8 +30,18 @@ const categorySchema = mongoose.Schema({
     deletedAt: {
         type: Date,
         default: null
-    }
-}, { timestamps: true })
+    },
+    image: {
+        type: String,
+        required: true
+    },
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+})
+
+categorySchema.plugin(mongooseLeanVirtuals)
 
 categorySchema.pre(/^find/, function (next) {
     if (!this.getFilter().deleted) {
@@ -58,5 +72,20 @@ categorySchema.methods.restore = async function () {
     this.deletedAt = null
     await this.save()
 }
+
+categorySchema.virtual('image_url').get(function () {
+
+    console.log("Image :: ", this.image)
+    if (!this.image) {
+        return null
+    }
+    if (this.image.startsWith('http')) {
+        return this.image
+    }
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.image.startsWith('/') ? this.image : `/${this.image}`
+    return `${baseUrl}${path}`
+})
 
 module.exports = mongoose.model('Category', categorySchema)

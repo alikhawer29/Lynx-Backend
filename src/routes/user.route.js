@@ -10,11 +10,17 @@ router.get('/get', AuthVerifier, userController.getUser)
 
 router.get('/get/:id', AuthVerifier, userController.getUserById)
 
+router.get('/appointments/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getAppointmentsByUser) //only admin can access this route
+
+router.get('/provider-appointments/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getAppointmentsByProvider) //only admin can access this route
+
 router.patch('/status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.updateUserStatus) //Update user status
 
-router.put('/update', AuthVerifier, upload("user").single("image"), userController.updateUser)
-
 router.patch('/handle-status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.handleStatus)
+
+router.patch('/verify/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.verifyUser)
+
+router.put('/update', AuthVerifier, upload("user").single("image"), userController.updateUser)
 
 router.delete('/delete', AuthVerifier, userController.deleteUser)
 
@@ -22,7 +28,7 @@ router.post('/change-password', AuthVerifier, userController.changePassword)
 
 router.get('/my-profile', AuthVerifier, userController.getMyProfile)
 
-router.get('/home', AuthVerifier, userController.getHome)
+router.get('/home', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getHome)
 
 router.put('/handle-favorite/:id', AuthVerifier, userController.handleFavoriteServices)
 

@@ -1,6 +1,11 @@
 const User = require('../models/user.model')
+const Booking = require('../models/booking.model')
+const Payment = require('../models/payment.model')
 const Conversation = require('../models/conversation.model')
+const response = require('../utils/response');
+
 const {
+    paginateResponse,
     paginationHandler,
     objectValidator,
     getSearchQuery,
@@ -50,76 +55,161 @@ const completeProfile = (async (req, res) => {
     }
 })
 
+// const getUser = async (req, res) => {
+//     try {
+//         let { page, per_page, role, search, from, to, sortBy, status, active } = req.query
+
+//         let options = paginationHandler(page, per_page)
+
+//         let filter = {}
+//         let sort = {}
+
+//         // Filter by role - if role is provided, use it; otherwise default to 'user'
+//         if (role && role !== 'undefined') {
+//             filter.role = role
+//         } else {
+//             // Default to showing only users with role 'user'
+//             filter.role = 'user'
+//         }
+
+//         if (search) {
+//             filter = { ...filter, name: getSearchQuery(search) }
+//         }
+
+//         if (status) {
+//             if (status === GENERAL_STATUS.PENDING) {
+//                 filter = {
+//                     ...filter,
+//                     status,
+//                     details: { $exists: true }
+//                 }
+//             } else {
+//                 filter = { ...filter, status }
+//             }
+//         }
+
+//         if (req?.query?.hasOwnProperty("active") && active != null) {
+//             filter.active = active
+//         }
+
+//         if (from || to) {
+//             filter = { ...filter, createdAt: getDateRangeQuery(from, to) }
+//         }
+
+//         if (sortBy) {
+//             sort = { [sortBy]: -1 }
+//         }
+
+//         let projection = {
+//             password: 0
+//         }
+
+//         let users = await User.find(filter, projection, options)
+//             .sort(sort)
+//             .lean()
+
+//         let total = await User.countDocuments(filter)
+
+//         return res.status(200).send({
+//             success: true,
+//             total,
+//             data: users
+//         })
+
+//     } catch (e) {
+//         console.log("Error Message :: ", e)
+//         return res.status(400).send({
+//             success: false,
+//             message: e.message
+//         })
+//     }
+// }
+
+//Admin
 const getUser = async (req, res) => {
     try {
-        let { page, per_page, role, search, from, to, sortBy, status, active } = req.query
+        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active, new_requests } = req.query;
 
-        let options = paginationHandler(page, per_page)
+        let { limit, skip } = paginationHandler(page, per_page);
 
-        let filter = {}
-        let sort = {}
+        let filter = {};
+        let sort = {};
 
-        // Filter by role - if role is provided, use it; otherwise default to 'user'
-        if (role && role !== 'undefined') {
-            filter.role = role
-        } else {
-            // Default to showing only users with role 'user'
-            filter.role = 'user'
-        }
+        // Role filter
+        filter.role = role && role !== 'undefined' ? role : 'user';
+
+        // Search filter
+        // if (search) {
+        //     filter = { ...filter, name: getSearchQuery(search) };
+        // }
 
         if (search) {
-            filter = { ...filter, name: getSearchQuery(search) }
+            filter.$or = [
+                { first_name: getSearchQuery(search) },
+                { last_name: getSearchQuery(search) }
+            ];
         }
 
+        // Status filter
         if (status) {
             if (status === GENERAL_STATUS.PENDING) {
                 filter = {
                     ...filter,
                     status,
                     details: { $exists: true }
-                }
+                };
             } else {
-                filter = { ...filter, status }
+                filter = { ...filter, status };
             }
         }
 
-        if (req?.query?.hasOwnProperty("active") && active != null) {
-            filter.active = active
+        //for provider new requests
+        if (new_requests) {
+            filter.is_verified = new_requests === 'true' ? false : true
         }
 
+        // Active filter
+        if (req.query.hasOwnProperty("active") && active != null) {
+            filter.active = active;
+        }
+
+        // Date filter
         if (from || to) {
-            filter = { ...filter, createdAt: getDateRangeQuery(from, to) }
+            filter.createdAt = getDateRangeQuery(from, to);
         }
 
-        if (sortBy) {
-            sort = { [sortBy]: -1 }
-        }
+        // Sorting
+        sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
 
-        let projection = {
-            password: 0
-        }
-
-        let users = await User.find(filter, projection, options)
+        // Fetch data
+        let users = await User.find(filter, { password: 0 })
             .sort(sort)
-            .lean()
+            .skip(skip)
+            .limit(limit)
+            .lean();
 
-        let total = await User.countDocuments(filter)
+        let total = await User.countDocuments(filter);
 
-        return res.status(200).send({
-            success: true,
+        // Build base URL (same as Laravel)
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
             total,
+            baseUrl,
             data: users
-        })
+        });
+
+        return res.json(response.success("User Listing", paginated));
 
     } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        console.log("Error Message :: ", e);
+        return res.json(response.error(e.message, 400, "User Listing"));
     }
-}
+};
 
+//Admin
 const getUserById = async (req, res) => {
     try {
         const { decoded, params } = req
@@ -127,19 +217,67 @@ const getUserById = async (req, res) => {
 
         let user = await User.findById(id).select('-password').exec()
 
-        return res.status(200).send({
-            success: true,
-            data: user
-        })
+        res.json(response.success("User Details", user));
 
     } catch (e) {
         console.log("Error Message :: ", e)
+        return res.json(response.error(e.message, 400, "User Details"));
+    }
+}
+
+const verifyUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_verified, reject_reason } = req.body; // send boolean and optional reason
+
+        if (typeof is_verified !== "boolean") {
+            return res.status(400).send({
+                success: false,
+                message: "is_verified must be boolean"
+            });
+        }
+
+        const user = await User.findById(id);
+
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        user.is_verified = is_verified;
+
+        if (is_verified === false && reject_reason) {
+            user.reject_reason = reject_reason; // you need to add this field to User schema
+        } else {
+            user.active = true; // activate user if approved
+            user.reject_reason = null; // clear previous reason if approved
+        }
+
+        await user.save();
+
+        return res.status(200).send({
+            success: true,
+            message: is_verified
+                ? "User approved successfully"
+                : "User rejected successfully",
+            data: {
+                id: user._id,
+                is_verified: user.is_verified,
+                reject_reason: user.reject_reason || null
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
         return res.status(400).send({
             success: false,
             message: e.message
-        })
+        });
     }
-}
+};
+
 
 const updateUserStatus = async (req, res) => {
     try {
@@ -232,6 +370,184 @@ const updateUser = (async (req, res) => {
     }
 })
 
+// Admin - User Appointments
+const getAppointmentsByUser = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active } = req.query;
+
+        const { id } = req.params;
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        // ---------------------------
+        // BUILD FILTER PROPERLY
+        // ---------------------------
+        let filter = {};
+
+        // User filter (parent/user appointments)
+        filter.user_id = id;
+
+        // Role filter
+        if (role && role !== "undefined") {
+            filter.role = role;
+        }
+
+        // Search filter
+        if (search) {
+            filter.name = getSearchQuery(search);
+        }
+
+        // Status filter
+        if (status) {
+            if (status === GENERAL_STATUS.PENDING) {
+                filter.status = status;
+                filter.details = { $exists: true };
+            } else {
+                filter.status = status;
+            }
+        }
+
+        // Active filter
+        if (req.query.hasOwnProperty("active") && active !== undefined) {
+            filter.active = active;
+        }
+
+        // Date filter
+        if (from || to) {
+            filter.createdAt = getDateRangeQuery(from, to);
+        }
+
+        // Sorting
+        let sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
+
+        // ---------------------------
+        // FETCH APPOINTMENTS
+        // ---------------------------
+        let appointments = await Booking.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        let total = await Booking.countDocuments(filter);
+
+        // Base URL
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: appointments
+        });
+
+        return res.json(response.success("User Appointments", paginated));
+
+    } catch (e) {
+        console.log("Error :: ", e);
+        return res.json(response.error(e.message, 400, "User Appointments"));
+    }
+};
+
+// Admin - Provider Appointments
+const getAppointmentsByProvider = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active } = req.query;
+
+        const { id } = req.params;
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        // ---------------------------
+        // BUILD FILTER PROPERLY
+        // ---------------------------
+        let filter = {};
+
+        // User filter (parent/user appointments)
+        filter.provider_id = id;
+
+        // Role filter
+        if (role && role !== "undefined") {
+            filter.role = role;
+        }
+
+        // Search filter
+        if (search) {
+            filter.name = getSearchQuery(search);
+        }
+
+        // Status filter
+        if (status) {
+            if (status === GENERAL_STATUS.PENDING) {
+                filter.status = status;
+                filter.details = { $exists: true };
+            } else {
+                filter.status = status;
+            }
+        }
+
+        if (status) {
+            // Always filter by main status first
+            filter.status = GENERAL_STATUS.APPROVED;
+
+            // If booking is approved, apply booking_status filter
+            if (status === GENERAL_STATUS.APPROVED && booking_status) {
+                if (
+                    booking_status === BOOKING_TIME_STATUS.UPCOMING ||
+                    booking_status === BOOKING_TIME_STATUS.IN_PROGRESS ||
+                    booking_status === BOOKING_TIME_STATUS.PAST
+                ) {
+                    filter.booking_status = booking_status;
+                }
+            }
+        }
+
+        // Active filter
+        if (req.query.hasOwnProperty("active") && active !== undefined) {
+            filter.active = active;
+        }
+
+        // Date filter
+        if (from || to) {
+            filter.createdAt = getDateRangeQuery(from, to);
+        }
+
+        // Sorting
+        let sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
+
+        // ---------------------------
+        // FETCH APPOINTMENTS
+        // ---------------------------
+        let appointments = await Booking.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        let total = await Booking.countDocuments(filter);
+
+        // Base URL
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: appointments
+        });
+
+        return res.json(response.success("User Appointments", paginated));
+
+    } catch (e) {
+        console.log("Error :: ", e);
+        return res.json(response.error(e.message, 400, "User Appointments"));
+    }
+};
+
+
+//Admin
 const handleStatus = (async (req, res) => {
     try {
 
@@ -401,28 +717,38 @@ const getHome = (async (req, res) => {
 
         let { id } = req.decoded
 
-        let total_employees = await User.countDocuments({ manager: id })
-        let active_employees = await User.countDocuments({ manager: id, active: true })
+        let total_users = await User.countDocuments({ role: 'user' })
+        let total_providers = await User.countDocuments({ role: 'provider' })
+        let new_bookings = await Booking.countDocuments({ status: GENERAL_STATUS.PENDING })
+        let earningsData = await Payment.aggregate([
+            {
+                $match: {
+                    payment_status: "succeeded",   // include only successful payments
+                    deleted: false            // if you use soft delete
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total_earnings: { $sum: "$amount" }
+                }
+            }
+        ]);
+
+        let total_earnings = earningsData.length ? earningsData[0].total_earnings : 0;
 
         let data = {
-            total_employees,
-            active_employees,
-            completed_quiz: 0,
-            pending_quiz: 0,
-            latest_quiz: [],
+            total_users,
+            total_providers,
+            new_bookings,
+            total_earnings,
         }
 
-        return res.status(200).send({
-            success: true,
-            data
-        })
+        return res.json(response.success("Home Data", data));
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return res.json(response.error(e.message, 400, "Home Data"));
     }
 })
 
@@ -514,5 +840,8 @@ module.exports = {
     getFavoriteServices,
     handleStatus,
     logout,
-    updateUserStatus
+    updateUserStatus,
+    getAppointmentsByUser,
+    getAppointmentsByProvider,
+    verifyUser
 }

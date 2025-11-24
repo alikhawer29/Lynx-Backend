@@ -18,4 +18,5 @@ router.delete('/delete/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), servic
 
 router.post('/favorite/:id', AuthVerifier, RestrictAccess([ROLES.USER]), serviceController.handleFavorite)
 
+
 module.exports = router
