@@ -1,6 +1,7 @@
 const { isProtected, credentials } = require('./src/configs/ssl')
 const express = require('express')
-const instance = require('http')
+const http = require('http')
+const https = require('https')
 const cookieParser = require("cookie-parser")
 const cors = require('cors')
 const path = require('path')
@@ -48,7 +49,18 @@ app.use(cors())
 app.use(`/${process.env.APP_NAME}/v1/api`, routes)
 app.use('/uploads', express.static(path.join(__dirname, "uploads")));
 
-let server = instance.createServer(credentials, app)
+// Create server based on SSL configuration
+let server;
+if (isProtected && credentials) {
+    // HTTPS server for production (iOS compatible)
+    server = https.createServer(credentials, app);
+    console.log('🔒 HTTPS server enabled');
+} else {
+    // HTTP server for development
+    server = http.createServer(app);
+    console.log('⚠️  HTTP server enabled (not recommended for production/iOS)');
+}
+
 let io = setIO(server)
 
 const serverHandler = async () => {
