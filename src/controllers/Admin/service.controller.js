@@ -148,45 +148,14 @@ const getServiceById = async (req, res) => {
             .lean({ virtuals: true });
 
         if (!service) {
-            return res.status(404).send({
-                success: false,
-                message: "Service not found"
-            });
+            throw new Error(ERRORS.SERVICE_NOTEXIST)
         }
 
-        // Get reviews for this service
-        const Review = require('../models/review.model');
-        const reviews = await Review.find({ service: id })
-            .populate({ path: 'user', select: 'first_name last_name email picture' })
-            .select('rating review createdAt')
-            .sort({ createdAt: -1 })
-            .lean({ virtuals: true });
-
-        service.reviews = reviews;
-
-        // Calculate average rating and review count
-        const review_count = reviews.length;
-        let avg_rating = 0;
-
-        if (review_count > 0) {
-            avg_rating = reviews.reduce((sum, review) => sum + review.rating, 0) / review_count;
-            avg_rating = parseFloat(avg_rating.toFixed(1));
-        }
-
-        service.review_count = review_count;
-        service.avg_rating = avg_rating;
-
-        return res.status(200).send({
-            success: true,
-            data: service
-        });
+        return res.status(200).send(response.success("Service retrieved successfully.", service));
 
     } catch (error) {
         console.error("Error Message :: ", error);
-        return res.status(500).send({
-            success: false,
-            message: error.message || "Internal server error"
-        });
+        return res.status(400).send(response.error(error.message, 400, "Service Retrieval"));
     }
 };
 

@@ -22,6 +22,38 @@ const chatRoutes = require('./chat.route')
 const adminServiceRoutes = require('./Admin/service.route')
 const adminCategoryRoutes = require('./Admin/category.route')
 const adminContentRoutes = require('./Admin/content.route')
+const adminBookingRoutes = require('./Admin/booking.route')
+const adminAuthRoutes = require('./Admin/authentication.route')
+const adminUserRoutes = require('./Admin/user.route')
+const adminNotificationRoutes = require('./Admin/notification.route')
+const adminSlotRoutes = require('./Admin/slot.route')
+const adminFeedbackRoutes = require('./Admin/feedback.route')
+const adminPaymentRoutes = require('./Admin/payment.route')
+
+//ADMIN
+
+router.use('/admin/services', adminServiceRoutes)
+
+router.use('/admin/categories', adminCategoryRoutes)
+
+router.use('/admin/content', adminContentRoutes)
+
+router.use('/admin/auth', adminAuthRoutes)
+
+router.use('/admin/booking', adminBookingRoutes)
+
+router.use('/admin/', adminUserRoutes)
+
+router.use('/admin/notifications', adminNotificationRoutes)
+
+router.use('/admin/slots', adminSlotRoutes)
+
+router.use('/admin/feedback', adminFeedbackRoutes)
+
+router.use('/admin/payments', adminPaymentRoutes)
+
+
+//USER
 
 router.use('/user', userRoutes)
 
@@ -40,12 +72,6 @@ router.use('/notification', notificationRoutes)
 router.use('/package', packageRoutes)
 
 router.use('/service', serviceRoutes)
-
-router.use('/admin/service', adminServiceRoutes)
-
-router.use('/admin/category', adminCategoryRoutes)
-
-router.use('/admin/content', adminContentRoutes)
 
 router.use('/booking', bookingRoutes)
 

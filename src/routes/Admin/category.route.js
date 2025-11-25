@@ -8,9 +8,9 @@ const upload = require('../../middlewares/upload.middleware')
 
 router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), categoryController.createCategory)
 
-router.get('/get', AuthVerifier, categoryController.getCategory)
+router.get('/', AuthVerifier, categoryController.getCategory)
 
-router.get('/get/:id', AuthVerifier, categoryController.getCategoryById)
+router.get('/:id', AuthVerifier, categoryController.getCategoryById)
 
 router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), categoryController.updateCategory)
 

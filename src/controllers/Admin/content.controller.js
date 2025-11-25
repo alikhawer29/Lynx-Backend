@@ -129,17 +129,11 @@ const getContentById = (async (req, res) => {
 
         }
 
-        return res.status(200).send({
-            success: true,
-            data: content
-        })
+        return res.json(response.success("Content retrieved successfully", content));
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return res.json(response.error(e.message, 400, "Content retrieval"));
     }
 })
 

@@ -8,9 +8,9 @@ const upload = require('../../middlewares/upload.middleware')
 
 router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("content").fields([{ name: 'media', maxCount: 1 }, { name: 'media_thumbnail', maxCount: 1 },]), contentController.createContent)
 
-router.get('/get', AuthVerifier, contentController.getContent)
+router.get('/', AuthVerifier, contentController.getContent)
 
-router.get('/get/:id', AuthVerifier, contentController.getContentById)
+router.get('/:id', AuthVerifier, contentController.getContentById)
 
 router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), contentController.updateContent)
 

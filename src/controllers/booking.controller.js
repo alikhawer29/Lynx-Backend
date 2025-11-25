@@ -187,20 +187,12 @@ const getBookings = async (req, res) => {
         const bookings = await Booking.aggregate(pipeline);
         const total = await Booking.countDocuments(filter);
 
-        // return res.status(200).send({
-        //     success: true,
-        //     total,
-        //     data: bookings,
-        // });
+
         return res.json(response.success("Booking Listing", bookings));
 
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        // return res.status(400).send({
-        //     success: false,
-        //     message: e.message,
-        // });
         return res.json(response.error(e.message, 400, "Booking Listing"));
     }
 };

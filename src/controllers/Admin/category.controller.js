@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose')
 const Category = require('../../models/category.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, paginateResponse, normalize } = require('../../utils')
 const response = require('../../utils/response')
@@ -87,19 +88,24 @@ const getCategoryById = async (req, res) => {
     try {
         const { id } = req.params;
 
+        // Validate ObjectId
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json(response.error("Invalid category ID format", 400));
+        }
+
         // Use lean with virtuals enabled
         let category = await Category.findById(id).lean({ virtuals: true });
 
         if (!category) {
-            return res.json(response.error("Category not found", 404, "Category retrieval"));
+            throw new Error(ERRORS.CATEGORY_NOTEXIST)
         }
 
-        // No need to overwrite image_url, the virtual handles it
-        return res.json(response.success("Category retrieved successfully", category));
+        return res.status(200).json(response.success("Category retrieved successfully", category));
 
     } catch (e) {
-        console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Category retrieval"));
+        console.log("Error Message :: ", e)
+        const errorResponse = response.error(e.message, 400);
+        return res.status(errorResponse.statusCode).json(errorResponse);
     }
 };
 
@@ -119,11 +125,13 @@ const updateCategory = async (req, res) => {
 
         let category = await Category.findByIdAndUpdate(id, { $set: payload }, { new: true }).lean({ virtuals: true });
 
-        return res.json(response.success("Category Updated Successfully", category));
+        return res.status(200).json(response.success("Category Updated Successfully", category));
+
 
     } catch (e) {
-        console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Category update"));
+        console.log("Error Message :: ", e)
+        const errorResponse = response.error(e.message, 400);
+        return res.status(errorResponse.statusCode).json(errorResponse);
     }
 };
 
@@ -137,11 +145,12 @@ const deleteCategory = (async (req, res) => {
         let category = await Category.findById(id)
         await category.trash()
 
-        return res.json(response.success("Category Deleted Successfully", null));
+        return res.status(200).json(response.success("Category Deleted Successfully"));
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Category deletion"));
+        const errorResponse = response.error(e.message, 400);
+        return res.status(errorResponse.statusCode).json(errorResponse);
     }
 })
 

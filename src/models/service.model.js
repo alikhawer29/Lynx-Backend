@@ -42,7 +42,12 @@ const serviceSchema = mongoose.Schema({
     deletedAt: {
         type: Date,
         default: null
-    }
+    },
+    service_type: {
+        type: String,
+        enum: ['provider_visits_user', 'user_visits_provider', 'both'],
+        default: 'both'
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

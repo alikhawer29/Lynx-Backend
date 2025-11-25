@@ -81,7 +81,9 @@ const ERRORS = {
     USER_EXIST: "User already exists",
     INVALID_CREDENTIALS: "Invalid Credentials",
     BLOCKEDBY_ADMIN: "You are blocked by Admin. Please contact admin",
-    UNAUTHORIZED: "Access denied"
+    UNAUTHORIZED: "Access denied",
+    SERVICE_NOTEXIST: "Service doesn't exist",
+    CATEGORY_NOTEXIST: "Category doesn't exist"
 }
 
 const SLOTS = [

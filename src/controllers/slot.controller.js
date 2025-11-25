@@ -198,7 +198,7 @@ const getSlots = async (req, res) => {
         }
 
         let slots = await Slot.find(filter, {}, options)
-            .populate({ path: 'created_by', select: 'first_name last_name email' })
+            // .populate({ path: 'created_by', select: 'first_name last_name email' })
             .sort(sort);
 
         let total = await Slot.countDocuments(filter);

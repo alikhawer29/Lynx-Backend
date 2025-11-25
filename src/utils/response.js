@@ -1,5 +1,6 @@
+// response.js
 module.exports = {
-    success(message = "Success", data = null) {
+    success(message = "Success", data = null, statusCode = 200) {
         return {
             status: true,
             message,
@@ -7,11 +8,11 @@ module.exports = {
         };
     },
 
-    error(message = "Error", code = 400, details = null) {
+    error(message = "Error", statusCode = 400, details = null) {
         return {
             status: false,
             message,
-            code,
+            statusCode,
             details,
         };
     }

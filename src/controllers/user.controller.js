@@ -228,8 +228,9 @@ const getUserById = async (req, res) => {
 const verifyUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { is_verified, reject_reason } = req.body; // send boolean and optional reason
+        const { is_verified, reject_reason, service_id, booking_category } = req.body;
 
+        // Validate is_verified is boolean
         if (typeof is_verified !== "boolean") {
             return res.status(400).send({
                 success: false,
@@ -246,28 +247,66 @@ const verifyUser = async (req, res) => {
             });
         }
 
+        // If verification is false, reject_reason is required
+        if (is_verified === false) {
+            if (!reject_reason || reject_reason.trim() === '') {
+                return res.status(400).send({
+                    success: false,
+                    message: "reject_reason is required when is_verified is false"
+                });
+            }
+        }
+
+        // If verification is true, service_id and booking_category are required
+        if (is_verified === true) {
+            if (!service_id || !Array.isArray(service_id) || service_id.length === 0) {
+                return res.status(400).send({
+                    success: false,
+                    message: "service_id array is required when is_verified is true"
+                });
+            }
+
+            if (!booking_category || !['normal', 'premium'].includes(booking_category)) {
+                return res.status(400).send({
+                    success: false,
+                    message: "booking_category is required and must be 'normal' or 'premium'"
+                });
+            }
+        }
+
+        // Update user verification status
         user.is_verified = is_verified;
 
-        if (is_verified === false && reject_reason) {
-            user.reject_reason = reject_reason; // you need to add this field to User schema
+        if (is_verified === false) {
+            // Reject user
+            user.reject_reason = reject_reason;
+            user.active = false; // Deactivate rejected user
+            user.provider_services = []; // Clear any previously assigned services
         } else {
-            user.active = true; // activate user if approved
-            user.reject_reason = null; // clear previous reason if approved
+            // Approve user
+            user.reject_reason = null; // Clear rejection reason
+            user.active = true; // Activate user
+            user.provider_services = service_id; // Assign services to provider
+            user.booking_category = booking_category; // Store booking category
         }
 
         await user.save();
 
-        return res.status(200).send({
-            success: true,
-            message: is_verified
-                ? "User approved successfully"
-                : "User rejected successfully",
-            data: {
-                id: user._id,
-                is_verified: user.is_verified,
-                reject_reason: user.reject_reason || null
-            }
-        });
+        const message = is_verified
+            ? "Provider approved successfully with assigned services"
+            : "Provider rejected successfully";
+
+        return res.json(response.success(message, {
+            id: user._id,
+            is_verified: user.is_verified,
+            active: user.active,
+            reject_reason: user.reject_reason || null,
+            provider_services: user.provider_services || [],
+            booking_category: user.booking_category || null
+        }
+        ));
+
+
 
     } catch (e) {
         console.log("Error Message :: ", e);
@@ -827,6 +866,142 @@ const logout = (async (req, res) => {
     }
 })
 
+const scheduleInterview = async (req, res) => {
+    try {
+        let { body, params } = req
+
+        let validate = objectValidator(body)
+
+        if (!validate) {
+            throw new Error(ERRORS.NULL_FIELD)
+        }
+
+        let user = await User.findById(params?.id)
+
+        if (!user) {
+            throw new Error("User not found")
+        }
+
+        console.log(user.interview, 'user.interview')
+
+        // Check if interview already exists and is scheduled
+        if (user.interview && user.interview.status === 'scheduled') {
+            throw new Error("User already has a scheduled interview")
+        }
+
+        // Convert date string to Date object
+        const [day, month, year] = body.date.split('-')
+        const interviewDate = new Date(`${year}-${month}-${day}`)
+
+        // Validate date
+        if (isNaN(interviewDate.getTime())) {
+            throw new Error("Invalid date format. Use DD-MM-YYYY")
+        }
+
+        // Validate time format
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+        if (!timeRegex.test(body.start_time) || !timeRegex.test(body.end_time)) {
+            throw new Error("Invalid time format. Use HH:MM (24-hour format)")
+        }
+
+        // Validate end time is after start time
+        const startTime = new Date(`1970-01-01T${body.start_time}:00`)
+        const endTime = new Date(`1970-01-01T${body.end_time}:00`)
+        if (endTime <= startTime) {
+            throw new Error("End time must be after start time")
+        }
+
+        // Create/Update interview object
+        user.interview = {
+            date: interviewDate,
+            start_time: body.start_time,
+            end_time: body.end_time,
+            description: body.description,
+            status: 'scheduled',
+            scheduled_at: new Date(),
+            updated_at: new Date()
+        }
+
+        await user.save()
+
+        return res.json(response.success("Interview scheduled successfully", {
+            interview: {
+                date: body.date, // Return original format
+                start_time: user.interview.start_time,
+                end_time: user.interview.end_time,
+                description: user.interview.description,
+                status: user.interview.status,
+                scheduled_at: user.interview.scheduled_at
+            }
+        }));
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return res.json(response.error(e.message, 400, "Schedule Interview"));
+    }
+
+
+
+
+}
+
+
+const upgradeAccount = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_approved, reject_reason } = req.body;
+
+        // Validate is_approved is boolean
+        if (typeof is_approved !== "boolean") {
+            return res.status(400).send({
+                success: false,
+                message: "is_approved must be boolean"
+            });
+        }
+
+        const user = await User.findById(id);
+
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // If approval is false, reject_reason is required
+        if (is_approved === false) {
+            if (!reject_reason || reject_reason.trim() === '') {
+                return res.status(400).send({
+                    success: false,
+                    message: "reject_reason is required when is_approved is false"
+                });
+            }
+        }
+
+        // Update user's account approval status
+        user.booking_category = is_approved ? 'premium' : 'normal';
+        user.upgrade_reject_reason = reject_reason || null;
+        await user.save();
+
+        const message = is_approved
+            ? "Account upgraded successfully"
+            : "Account upgrade request rejected";
+
+        return res.json(response.success(message, {
+            id: user._id,
+            booking_category: user.booking_category,
+            reject_reason: user.upgrade_reject_reason || null
+        }
+        ));
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
 module.exports = {
     completeProfile,
     getUser,
@@ -843,5 +1018,7 @@ module.exports = {
     updateUserStatus,
     getAppointmentsByUser,
     getAppointmentsByProvider,
-    verifyUser
+    verifyUser,
+    scheduleInterview,
+    upgradeAccount
 }

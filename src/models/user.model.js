@@ -115,12 +115,58 @@ const userSchema = mongoose.Schema({
         type: String,
         default: null
     },
+    upgrade_reject_reason: {
+        type: String,
+        default: null
+    },
 
     // Provider services (what services they can provide)
     provider_services: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Service"
-    }]
+    }],
+
+    // Booking category for providers
+    booking_category: {
+        type: String,
+        enum: ['normal', 'premium'],
+        default: 'normal'
+    },
+    interview: {
+        date: {
+            type: Date,
+            default: null
+        },
+        start_time: {
+            type: String,
+            default: null
+        },
+        end_time: {
+            type: String,
+            default: null
+        },
+        description: {
+            type: String,
+            default: null
+        },
+        status: {
+            type: String,
+            enum: ['scheduled', 'completed', 'cancelled', 'no_show'],
+            default: null  // ✅ Change to null
+        },
+        meeting_link: {
+            type: String,
+            default: null
+        },
+        scheduled_at: {
+            type: Date,
+            default: null  // ✅ Change to null
+        },
+        updated_at: {
+            type: Date,
+            default: null  // ✅ Change to null
+        }
+    }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
