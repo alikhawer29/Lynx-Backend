@@ -49,9 +49,9 @@ const getChatRoom = async (req, res) => {
 
 
 // ============================
-// Get User's Chat List
+// Get Support Chat List
 // ============================
-const getUserChats = async (req, res) => {
+const getSupportChats = async (req, res) => {
     try {
         const { decoded } = req;
         const { page, per_page, chat_type } = req.query;
@@ -118,64 +118,44 @@ const getUserChats = async (req, res) => {
     }
 };
 
-
-// ============================
-// Search Chats
-// ============================
-const searchChats = async (req, res) => {
+const getOverviewChats = async (req, res) => {
     try {
         const { decoded } = req;
-        const { query, page, per_page } = req.query;
-        const userId = decoded.id;
-
-        if (!query) {
-            throw new Error('Search query is required');
-        }
+        const { page, per_page } = req.query;
 
         let options = paginationHandler(page, per_page);
 
-        // Search in messages or user names
+        // Admin views all appointment chats (between users and providers)
         const chatRooms = await ChatRoom.find({
-            participants: userId,
             is_active: true,
-        })
+            chat_type: 'appointment'  // Only appointment chats
+        }, {}, options)
             .populate([
                 { path: 'user_id', select: 'first_name last_name email picture role' },
                 { path: 'other_user_id', select: 'first_name last_name email picture role' },
+                { path: 'booking_id', select: 'booking_id status booking_status session_date session_time' },
+                { path: 'last_message_sender', select: 'first_name last_name' },
             ])
+            .sort({ last_message_time: -1 })  // Sort by most recent message
             .lean({ virtuals: true });
 
-        // Filter by provider name or last message
-        const filtered = chatRooms.filter(chat => {
-            const otherUser = chat.user_id._id.toString() === userId ? chat.other_user_id : chat.user_id;
-            const fullName = `${otherUser.first_name} ${otherUser.last_name}`.toLowerCase();
-            const searchQuery = query.toLowerCase();
-
-            return (
-                fullName.includes(searchQuery) ||
-                (chat.last_message_text && chat.last_message_text.toLowerCase().includes(searchQuery))
-            );
+        const total = await ChatRoom.countDocuments({
+            is_active: true,
+            chat_type: 'appointment'  // Only appointment chats
         });
 
-        return res.status(200).send({
-            success: true,
-            total: filtered.length,
-            data: filtered,
-        });
+        return ResponseHandler.success(res, "Appointment chats retrieved successfully", chatRooms);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message);
     }
 };
 
 
 module.exports = {
     getChatRoom,
-    getUserChats,
-    searchChats,
+    getSupportChats,
+    getOverviewChats,
 };
 

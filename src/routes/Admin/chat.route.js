@@ -7,23 +7,23 @@ const { AuthVerifier, RestrictAccess } = require('../../middlewares/auth.middlew
 const upload = require('../../middlewares/upload.middleware');
 const { ROLES } = require('../../utils');
 
-// Get User's Chat List
+// Get Support Chat List
 router.get(
     '/',
     AuthVerifier,
     RestrictAccess([ROLES.ADMIN]),
-    chatController.getUserChats
+    chatController.getSupportChats
 );
 
-// Search Chats
+// Get Overview Chat List - MUST be before /:chatId
 router.get(
-    '/search/query',
+    '/overview',
     AuthVerifier,
     RestrictAccess([ROLES.ADMIN]),
-    chatController.searchChats
+    chatController.getOverviewChats
 );
 
-// Get Messages in Chat - MOVE THIS AFTER SPECIFIC ROUTES
+// Get Messages in Chat
 router.get(
     '/:chatId',
     AuthVerifier,
@@ -65,6 +65,15 @@ router.delete(
     AuthVerifier,
     RestrictAccess([ROLES.ADMIN]),
     messageController.deleteMessage
+);
+
+
+// Get Overview Messages in Chat
+router.get(
+    '/overview/:chatId',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    messageController.getOverviewMessages
 );
 
 module.exports = router;

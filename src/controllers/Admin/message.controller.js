@@ -352,10 +352,57 @@ const deleteMessage = async (req, res) => {
 };
 
 
+// ============================
+// Get Overview Messages (Admin Only)
+// ============================
+const getOverviewMessages = async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const { page, per_page } = req.query;
+
+        // Verify chat room exists
+        const chatRoom = await ChatRoom.findById(chatId);
+        if (!chatRoom) {
+            throw new Error('Chat room not found');
+        }
+
+        // Admin can view all appointment chats
+        if (chatRoom.chat_type !== 'appointment') {
+            throw new Error('This endpoint is only for appointment chats');
+        }
+
+        let options = paginationHandler(page, per_page);
+
+        const messages = await ChatMessage.find({
+            chat_room_id: chatId,
+            deleted: false  // Don't show deleted messages
+        }, {}, options)
+            .populate([
+                { path: 'sender_id', select: 'first_name last_name picture role' },
+                { path: 'receiver_id', select: 'first_name last_name picture role' },
+            ])
+            .sort({ createdAt: 1 })
+            .lean({ virtuals: true });
+
+        const total = await ChatMessage.countDocuments({
+            chat_room_id: chatId,
+            deleted: false
+        });
+
+        return ResponseHandler.success(res, "Messages retrieved successfully", messages);
+
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return ResponseHandler.error(res, e.message);
+    }
+};
+
+
 module.exports = {
     sendMessage,
     getMessages,
     markAsRead,
     markChatAsRead,
     deleteMessage,
+    getOverviewMessages,
 };
