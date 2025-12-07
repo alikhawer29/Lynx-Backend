@@ -1,6 +1,7 @@
 const Notification = require('../../models/notification.model')
 const { getSearchQuery, getDateRangeQuery, paginationHandler } = require('../../utils')
 const { ROLES } = require('../../utils')
+const ResponseHandler = require('../../utils/response')
 
 // User/Service Provider: Get notifications
 const getUserNotifications = async (req, res) => {
@@ -54,18 +55,14 @@ const getUserNotifications = async (req, res) => {
 
         let total = await Notification.countDocuments(filter)
 
-        return res.status(200).send({
-            success: true,
+        return ResponseHandler.success(res, "Notifications retrieved successfully", {
             total,
             data: notifications
         })
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 }
 
@@ -122,18 +119,14 @@ const getAdminNotifications = async (req, res) => {
 
         let total = await Notification.countDocuments(filter)
 
-        return res.status(200).send({
-            success: true,
+        return ResponseHandler.success(res, "Notifications retrieved successfully", {
             total,
             data: notifications
         })
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 }
 
@@ -146,10 +139,7 @@ const markAsRead = async (req, res) => {
         const notification = await Notification.findById(id)
 
         if (!notification) {
-            return res.status(404).send({
-                success: false,
-                message: "Notification not found"
-            })
+            return ResponseHandler.error(res, "Notification not found", 404);
         }
 
         // Check if user has access to this notification
@@ -158,10 +148,7 @@ const markAsRead = async (req, res) => {
             (decoded.role === ROLES.ADMIN && notification.for_admins)
 
         if (!hasAccess) {
-            return res.status(403).send({
-                success: false,
-                message: "Access denied to this notification"
-            })
+            return ResponseHandler.error(res, "Access denied to this notification", 403);
         }
 
         // Update the read status
@@ -171,18 +158,11 @@ const markAsRead = async (req, res) => {
             { new: true }
         )
 
-        return res.status(200).send({
-            success: true,
-            message: "Notification marked as read",
-            data: updatedNotification
-        })
+        return ResponseHandler.success(res, "Notification marked as read", updatedNotification);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 }
 
@@ -213,20 +193,13 @@ const markAllAsRead = async (req, res) => {
             { read: true }
         )
 
-        return res.status(200).send({
-            success: true,
-            message: `Marked ${result.modifiedCount} notifications as read`,
-            data: {
-                marked_count: result.modifiedCount
-            }
-        })
+        return ResponseHandler.success(res, `Marked ${result.modifiedCount} notifications as read`, {
+            marked_count: result.modifiedCount
+        });
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 }
 

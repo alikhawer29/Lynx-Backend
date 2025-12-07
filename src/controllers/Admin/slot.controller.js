@@ -3,6 +3,7 @@ const Slot = require('../../models/slot.model');
 const Booking = require('../../models/booking.model');
 const { ERRORS, objectValidator, paginationHandler, getDateRangeQuery } = require('../../utils');
 const response = require('../../utils/response');
+const ResponseHandler = require('../../utils/response');
 
 dotenv.config();
 
@@ -12,7 +13,6 @@ dotenv.config();
 const addBookingInfoToSlots = async (slots, service_id = null, date = null) => {
     const slotsWithBooking = await Promise.all(slots.map(async (slot) => {
         const slotObj = slot.toObject ? slot.toObject({ virtuals: true }) : slot;
-        console.log("SLOT OBJ", slotObj)
 
         // Build query to find bookings for this slot
         let bookingQuery = {
@@ -37,8 +37,6 @@ const addBookingInfoToSlots = async (slots, service_id = null, date = null) => {
                 $lt: nextDay,
             };
         }
-
-        console.log("BOOKING QUERY", bookingQuery)
 
         // Find booking for this slot
         const booking = await Booking.findOne(bookingQuery)
@@ -153,23 +151,15 @@ const createSlot = async (req, res) => {
             { path: 'created_by', select: 'first_name last_name email' },
         ]);
 
-        return res.status(200).send({
-            success: true,
-            message: `${createdSlots.length} slot(s) successfully created`,
-            data: {
-                created: createdSlots.length,
-                failed: errors.length,
-                slots: createdSlots,
-                errors,
-            },
+        return ResponseHandler.success(res, `${createdSlots.length} slot(s) successfully created`, {
+            created: createdSlots.length,
+            failed: errors.length,
+            slots: createdSlots,
+            errors,
         });
-
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -205,13 +195,11 @@ const getSlots = async (req, res) => {
         // Add booking information to slots
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
-        return res.status(200).json(response.success("Slots retrieved successfully", slotsWithBooking));
-
+        return ResponseHandler.success(res, "Slots retrieved successfully", slotsWithBooking);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -239,12 +227,11 @@ const getSlotsByDay = async (req, res) => {
         // Add booking information to slots
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
-        return res.status(200).json(response.success("Slots retrieved successfully", slotsWithBooking));
+        return ResponseHandler.success(res, "Slots retrieved successfully", slotsWithBooking);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -280,8 +267,7 @@ const getSlotsByDate = async (req, res) => {
         // Add booking information to slots for this specific date
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
-        return res.status(200).send({
-            success: true,
+        return ResponseHandler.success(res, "Slots retrieved successfully", {
             date: date,
             day: dayOfWeek,
             total: slotsWithBooking.length,
@@ -290,10 +276,7 @@ const getSlotsByDate = async (req, res) => {
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -312,12 +295,11 @@ const getSlotById = async (req, res) => {
             throw new Error('Slot not found');
         }
 
-        return res.status(200).json(response.success("Slot retrieved successfully", slot));
+        return ResponseHandler.success(res, "Slot retrieved successfully", slot);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -330,10 +312,7 @@ const updateSlot = async (req, res) => {
         const { decoded } = req;
 
         if (!slots || typeof slots !== 'object' || Object.keys(slots).length === 0) {
-            return res.status(400).send({
-                success: false,
-                message: 'Slots data is required',
-            });
+            return ResponseHandler.error(res, 'Slots data is required', 400);
         }
 
         const validDays = [
@@ -404,23 +383,15 @@ const updateSlot = async (req, res) => {
 
         await Slot.populate(updatedSlots, { path: 'created_by', select: 'first_name last_name email' });
 
-        return res.status(200).send({
-            success: true,
-            message: `${updatedSlots.length} slot(s) updated successfully`,
-            data: {
-                updated: updatedSlots.length,
-                failed: errors.length,
-                slots: updatedSlots,
-                errors,
-            },
+        return ResponseHandler.success(res, `${updatedSlots.length} slot(s) updated successfully`, {
+            updated: updatedSlots.length,
+            failed: errors.length,
+            slots: updatedSlots,
+            errors,
         });
-
     } catch (error) {
         console.error('Error Message ::', error);
-        return res.status(500).send({
-            success: false,
-            message: error.message || 'Something went wrong',
-        });
+        return ResponseHandler.error(res, error.message || 'Something went wrong', 500);
     }
 };
 
@@ -442,17 +413,11 @@ const deleteSlot = async (req, res) => {
         // Soft delete
         await slot.trash();
 
-        return res.status(200).send({
-            success: true,
-            message: 'Slot successfully deleted',
-        });
+        return ResponseHandler.success(res, 'Slot successfully deleted');
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -486,18 +451,14 @@ const getWeeklySchedule = async (_req, res) => {
             weeklySchedule[slot.day].push(slot);
         });
 
-        return res.status(200).send({
-            success: true,
+        return ResponseHandler.success(res, "Weekly schedule retrieved successfully", {
             total: slots.length,
             data: weeklySchedule,
         });
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -518,20 +479,13 @@ const toggleSlotStatus = async (req, res) => {
 
         await slot.save();
 
-        return res.status(200).send({
-            success: true,
-            message: `Slot status toggled successfully`,
-            data: {
-                is_active: slot.is_active,
-            },
+        return ResponseHandler.success(res, `Slot status toggled successfully`, {
+            is_active: slot.is_active,
         });
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 

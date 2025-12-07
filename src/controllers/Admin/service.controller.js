@@ -5,6 +5,7 @@ const Review = require('../../models/user.model')
 const User = require('../../models/user.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, normalize, paginateResponse } = require('../../utils')
 const response = require('../../utils/response')
+const ResponseHandler = require('../../utils/response')
 
 dotenv.config()
 
@@ -47,7 +48,7 @@ const createService = (async (req, res) => {
 const getService = async (req, res) => {
     try {
         let { decoded, query } = req;
-        let { page = 1, per_page = 10, search, from, to, sortBy, categories } = query;
+        let { page = 1, per_page = 10, search, from, to, sortBy, categories, provider_id } = query;
 
         page = parseInt(page);
         per_page = parseInt(per_page);
@@ -63,6 +64,37 @@ const getService = async (req, res) => {
         if (sortBy) sort = { [sortBy]: 1 };
         if (categories && categories.split(",").length > 0) {
             filter.category = { $in: categories.split(",").map(item => new mongoose.Types.ObjectId(item)) };
+        }
+
+        // Filter by provider's services
+        if (provider_id) {
+            const provider = await User.findById(provider_id).select('provider_services');
+
+            if (!provider) {
+                return ResponseHandler.error(res, "Provider not found", 404);
+            }
+
+            // Filter services to only include those in provider's provider_services array
+            if (provider.provider_services && provider.provider_services.length > 0) {
+                filter._id = { $in: provider.provider_services };
+            } else {
+                // Provider has no services assigned, return empty result
+                return ResponseHandler.success(res, "Service listing retrieved successfully.", {
+                    current_page: page,
+                    data: [],
+                    first_page_url: `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}?page=1`,
+                    from: 0,
+                    last_page: 0,
+                    last_page_url: `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}?page=0`,
+                    links: [],
+                    next_page_url: null,
+                    path: `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`,
+                    per_page: per_page,
+                    prev_page_url: null,
+                    to: 0,
+                    total: 0
+                });
+            }
         }
 
         // Build aggregation pipeline
@@ -129,11 +161,11 @@ const getService = async (req, res) => {
             data: services
         });
 
-        return res.status(200).send(response.success("Service listing retrieved successfully.", paginated));
+        return ResponseHandler.success(res, "Service listing retrieved successfully.", paginated);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.status(400).send(response.error(e.message, 400, "Service Listing"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -151,11 +183,11 @@ const getServiceById = async (req, res) => {
             throw new Error(ERRORS.SERVICE_NOTEXIST)
         }
 
-        return res.status(200).send(response.success("Service retrieved successfully.", service));
+        return ResponseHandler.success(res, "Service retrieved successfully.", service);
 
     } catch (error) {
         console.error("Error Message :: ", error);
-        return res.status(400).send(response.error(error.message, 400, "Service Retrieval"));
+        return ResponseHandler.error(res, error.message, 400);
     }
 };
 
@@ -168,18 +200,11 @@ const updateService = (async (req, res) => {
 
         let service = await Service.findByIdAndUpdate(id, { $set: body }, { new: true })
 
-        return res.status(200).send({
-            success: true,
-            message: "Service Updated Successfully",
-            data: service
-        })
+        return ResponseHandler.success(res, "Service Updated Successfully", service);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -191,17 +216,11 @@ const deleteService = (async (req, res) => {
 
         await Service.findByIdAndDelete(id)
 
-        return res.status(200).send({
-            success: true,
-            message: "Service Deleted Successfully",
-        })
+        return ResponseHandler.success(res, "Service Deleted Successfully");
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -228,17 +247,11 @@ const handleFavorite = (async (req, res) => {
         user.favorite_services = favorite_services
         await user.save()
 
-        return res.status(200).send({
-            success: true,
-            message: "Favorite Services Updated Successfully",
-        })
+        return ResponseHandler.success(res, "Favorite Services Updated Successfully");
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 

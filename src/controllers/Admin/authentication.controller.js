@@ -6,64 +6,72 @@ const { generateToken } = require('../../helpers/token')
 const { generateOTP, ERRORS, ROLES } = require('../../utils')
 const { sendMail } = require("../../helpers/email")
 const response = require('../../utils/response')
+const ResponseHandler = require('../../utils/response')
 
 
-const login = (async (req, res) => {
+const login = async (req, res) => {
     try {
-
-        let { email, password, device_id } = req.body
+        let { email, password, device_id } = req.body;
 
         if (!email || !password) {
-            throw new Error(ERRORS.REQUIRED_FIELD)
+            throw new Error(ERRORS.REQUIRED_FIELD);
         }
 
-        let projection = { __v: 0, createdAt: 0, updatedAt: 0 }
-
-        let userExist = await User.findOne({ email: email.toLowerCase() }, projection)
+        let projection = { __v: 0, createdAt: 0, updatedAt: 0 };
+        let userExist = await User.findOne({ email: email.toLowerCase() }, projection);
 
         if (!userExist) {
-            throw new Error(ERRORS.INVALID_CREDENTIALS)
+            throw new Error(ERRORS.INVALID_CREDENTIALS);
         }
 
-
-        let validPassword = await comparePassword(password, userExist.password)
+        let validPassword = await comparePassword(password, userExist.password);
 
         if (!validPassword) {
-            throw new Error(ERRORS.INVALID_CREDENTIALS)
+            throw new Error(ERRORS.INVALID_CREDENTIALS);
         }
 
-        let requestedUser = ROLES.ADMIN
+        let requestedUser = ROLES.ADMIN;
 
         if ((requestedUser !== userExist.role)) {
-            throw new Error(ERRORS.UNAUTHORIZED)
+            throw new Error(ERRORS.UNAUTHORIZED);
         }
 
-
-        let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
+        let token = await generateToken({
+            id: userExist._id,
+            email: userExist.email,
+            role: userExist.role
+        });
 
         if (device_id) {
-            userExist.device_ids = device_id
+            userExist.device_ids = device_id;
+            await userExist.save();
         }
 
-        await userExist.save()
+        // Prepare user data with only required fields
+        let userData = {
+            id: userExist._id,
+            first_name: userExist.first_name,
+            last_name: userExist.last_name,
+            email: userExist.email,
+            phone: userExist.phone,
+            country_code: userExist.country_code,
+            dialing_code: userExist.dialing_code || '+971',
+            role: userExist.role,
+            picture: userExist.picture,
+            image_url: userExist.image_url || `http://localhost:5000/uploads/user/dummy.jpg`
+        };
 
-        let currentUser = { ...userExist._doc }
-
-        delete currentUser.password
-        currentUser.image_url = userExist.image_url
-
-        return res.status(200).json(response.success("Admin successfully logged in", {
-            token,
-            data: currentUser
-        }));
+        return ResponseHandler.success(res, "Admin successfully logged in", {
+            token: token,
+            user: userData
+        }, 200);
 
     } catch (e) {
-        console.log("Error Message :: ", e)
+        console.log("Error Message :: ", e);
         const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
-
+        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
     }
-})
+};
 
 const forgetPassword = (async (req, res) => {
     try {
@@ -101,12 +109,12 @@ const forgetPassword = (async (req, res) => {
         let otpData = new Otp(payload)
         await otpData.save()
 
-        return res.status(200).json(response.success(`Code has been sent to email.`));
+        return ResponseHandler.success(res, "Code has been sent to email.");
 
     } catch (e) {
         console.log("Error Message :: ", e)
         const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
     }
 })
 
@@ -133,8 +141,7 @@ const verifyOtp = (async (req, res) => {
 
             if (otp == otpExist.otp) {
 
-                return res.status(200).json(response.success("OTP Verified", { email }))
-
+                return ResponseHandler.success(res, "OTP Verified", { email })
             } else {
                 throw new Error("Invalid OTP")
             }
@@ -146,7 +153,7 @@ const verifyOtp = (async (req, res) => {
     } catch (e) {
         console.log("Error Message :: ", e)
         const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
     }
 })
 
@@ -167,13 +174,13 @@ const resetPassword = (async (req, res) => {
 
         await User.findOneAndUpdate({ _id: userExist._id }, { password })
 
-        return res.status(200).json(response.success("Password reset successfully"));
+        return ResponseHandler.success(res, "Password reset successfully");
 
 
     } catch (e) {
         console.log("Error Message :: ", e)
         const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
     }
 })
 

@@ -14,7 +14,7 @@ const {
     paginateResponse
 } = require('../../utils');
 const getNextSequence = require('../../helpers/getNextSequence');
-const response = require('../../utils/response');
+const ResponseHandler = require('../../utils/response');
 const {
     sendBookingCreatedNotifications,
     sendBookingRejectedNotifications,
@@ -33,12 +33,26 @@ dotenv.config();
 const getBookings = async (req, res) => {
     try {
         const { decoded, query } = req;
-        const { page, per_page, search, from, to, sortBy, status, booking_status } = query;
+        const { page, per_page, search, from, to, sortBy, status, booking_status, is_requested } = query;
 
         const options = paginationHandler(page, per_page);
-        // let filter = {payment_status: 'paid'};
-        let filter = {}; // ✅ Always get only paid bookings
+        let filter = {};
         let sort = { createdAt: -1 };
+
+        // Status filter - always apply if provided
+        if (status) {
+            filter.status = status;
+        }
+
+        // is_requested filter: true = not approved (pending/rejected/cancelled), false = approved only
+        // This only applies if status is not explicitly set
+        if (is_requested !== undefined && !status) {
+            if (is_requested === 'true') {
+                filter.status = { $ne: 'approved' }; // Show all except approved
+            } else {
+                filter.status = 'approved'; // Show only approved
+            }
+        }
 
         // Filtering
         if (search) {
@@ -53,12 +67,9 @@ const getBookings = async (req, res) => {
         }
 
         if (from || to) {
-            filter = { ...filter, createdAt: getDateRangeQuery(from, to) };
+            filter = { ...filter, session_date: getDateRangeQuery(from, to) };
         }
 
-        if (status) {
-            filter.status = status;
-        }
         if (booking_status) {
             filter.booking_status = booking_status;
         }
@@ -80,13 +91,32 @@ const getBookings = async (req, res) => {
             { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
-                    from: "services",
-                    localField: "service_id",
+                    from: "slots",
+                    localField: "slot_id",
                     foreignField: "_id",
-                    as: "service",
+                    as: "slot",
                 },
             },
-            { $unwind: { path: "$service", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$slot", preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    booking_id: 1,
+                    user_first_name: "$user.first_name",
+                    user_last_name: "$user.last_name",
+                    user_phone: "$user.phone",
+                    user_dialing_code: "$user.dialing_code",
+                    session_date: 1,
+                    slot: {
+                        _id: "$slot._id",
+                        day: "$slot.day",
+                        start_time: "$slot.start_time",
+                        end_time: "$slot.end_time"
+                    },
+                    booking_status: 1,
+                    status: 1,
+                    price_type: 1
+                }
+            },
             { $sort: sort },
         ];
 
@@ -106,11 +136,11 @@ const getBookings = async (req, res) => {
             data: bookings
         });
 
-        return res.json(response.success("Bookings retrieved successfully", paginated));
+        return ResponseHandler.success(res, "Bookings retrieved successfully", paginated);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Bookings retrieval"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -173,11 +203,11 @@ const getBookingById = async (req, res) => {
         booking.is_reported = !!reportExists;
         booking.report_id = reportExists ? reportExists._id : null;
 
-        return res.json(response.success("Booking retrieved successfully", booking));
+        return ResponseHandler.success(res, "Booking retrieved successfully", booking);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Booking Retrieval"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -192,11 +222,11 @@ const updateBooking = async (req, res) => {
 
         const booking = await Booking.findByIdAndUpdate(id, { $set: body }, { new: true });
 
-        return res.json(response.success("Booking Updated Successfully", booking));
+        return ResponseHandler.success(res, "Booking Updated Successfully", booking);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Booking Update"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -215,11 +245,11 @@ const deleteBooking = async (req, res) => {
 
         await booking.trash();
 
-        return res.json(response.success("Booking Deleted Successfully"));
+        return ResponseHandler.success(res, "Booking Deleted Successfully");
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Booking Deletion"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -274,11 +304,11 @@ const assignProvider = async (req, res) => {
         // Send notifications
         sendProviderAssignedNotifications(booking);
 
-        return res.json(response.success("Provider Assigned Successfully", booking));
+        return ResponseHandler.success(res, "Provider Assigned Successfully", booking);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.json(response.error(e.message, 400, "Provider Assignment"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -366,11 +396,11 @@ const getAppointmentRequests = async (req, res) => {
             data: bookings
         });
 
-        return res.json(response.success("Appointment Requests", paginated));
+        return ResponseHandler.success(res, "Appointment Requests", paginated);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.json(response.error(e.message, 400, "Appointment Requests"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -471,11 +501,11 @@ const getAppointmentManagement = async (req, res) => {
             data: bookings
         });
 
-        return res.json(response.success("Appointment Management", paginated));
+        return ResponseHandler.success(res, "Appointment Management", paginated);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.json(response.error(e.message, 400, "Appointment Management"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -507,11 +537,11 @@ const rejectBooking = async (req, res) => {
         // Send notifications
         sendBookingRejectedNotifications(booking);
 
-        return res.json(response.success("Booking Rejected Successfully", booking));
+        return ResponseHandler.success(res, "Booking Rejected Successfully", booking);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.json(response.error(e.message, 400, "Booking Rejection"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -655,28 +685,21 @@ const cancelBooking = async (req, res) => {
             }
         );
 
-        return res.status(200).send({
-            success: true,
-            message: 'Booking cancelled successfully',
-            data: {
-                booking_id: booking._id,
-                booking_number: booking.booking_id,
-                status: booking.status,
-                refund_policy: refundPolicy,
-                refund_amount: refundAmount,
-                refund_type: refundType,
-                provider_compensation: providerCompensation,
-                hours_until_session: hoursUntilSession.toFixed(2),
-                stripe_refund_id: stripeRefund?.id || null,
-            },
+        return ResponseHandler.success(res, "Booking cancelled successfully", {
+            booking_id: booking._id,
+            booking_number: booking.booking_id,
+            status: booking.status,
+            refund_policy: refundPolicy,
+            refund_amount: refundAmount,
+            refund_type: refundType,
+            provider_compensation: providerCompensation,
+            hours_until_session: hoursUntilSession.toFixed(2),
+            stripe_refund_id: stripeRefund?.id || null,
         });
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -749,171 +772,84 @@ const rescheduleBooking = async (req, res) => {
         // Send comprehensive reschedule notifications
         sendBookingRescheduledNotifications(booking);
 
-        return res.status(200).send({
-            success: true,
-            message: 'Booking reschedule request sent to user',
-            data: {
-                booking_id: booking._id,
-                booking_number: booking.booking_id,
-                status: booking.status,
-                original_session_date: originalDate,
-                original_session_time: originalTime,
-                proposed_session_date: booking.proposed_session_date,
-                proposed_session_time: booking.proposed_session_time,
-                reschedule_reason: booking.reschedule_reason,
-                reschedule_response: booking.reschedule_response,
-            },
+        return ResponseHandler.success(res, "Booking reschedule request sent to user", {
+            booking_id: booking._id,
+            booking_number: booking.booking_id,
+            status: booking.status,
+            original_session_date: originalDate,
+            original_session_time: originalTime,
+            proposed_session_date: booking.proposed_session_date,
+            proposed_session_time: booking.proposed_session_time,
+            reschedule_reason: booking.reschedule_reason,
+            reschedule_response: booking.reschedule_response,
         });
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
 
 // ============================
-// User Response to Reschedule (Approve/Reject)
+// Get Providers (Admin Only)
 // ============================
-const respondToReschedule = async (req, res) => {
+const getProviders = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { decoded } = req;
-        const { response, rejection_reason } = req.body;
+        const { query } = req;
+        const { booking_category, search } = query;
 
-        // Validate response
-        if (!response || !['approved', 'rejected'].includes(response)) {
-            throw new Error('Response must be either "approved" or "rejected"');
-        }
+        let filter = { role: 'provider' };
 
-        if (response === 'rejected' && !rejection_reason) {
-            throw new Error('Rejection reason is required when rejecting reschedule');
-        }
-
-        // Find the booking
-        const booking = await Booking.findById(id)
-            .populate('user_id', 'first_name last_name email')
-            .populate('provider_id', 'first_name last_name email');
-
-        if (!booking) {
-            throw new Error('Booking not found');
-        }
-
-        // Check if user owns this booking
-        if (booking.user_id._id.toString() !== decoded.id) {
-            throw new Error('Unauthorized to respond to this reschedule request');
-        }
-
-        // Check if booking has a pending reschedule
-        if (!booking.reschedule_requested || booking.reschedule_response !== 'pending') {
-            throw new Error('No pending reschedule request for this booking');
-        }
-
-        if (booking.reschedule_response !== 'pending') {
-            throw new Error('Reschedule request has already been responded to');
-        }
-
-        const Slot = require('../models/slot.model');
-
-        if (response === 'approved') {
-            // User approved the reschedule
-
-            // Release old slot if exists
-            if (booking.slot_id) {
-                await Slot.findByIdAndUpdate(booking.slot_id, { is_booked: false });
+        // Filter by booking_category (normal or premium)
+        if (booking_category) {
+            if (!['normal', 'premium'].includes(booking_category)) {
+                return ResponseHandler.error(res, "booking_category must be 'normal' or 'premium'", 400);
             }
-
-            // Book new slot if exists
-            if (booking.proposed_slot_id) {
-                const newSlot = await Slot.findById(booking.proposed_slot_id);
-                if (!newSlot) {
-                    throw new Error('Proposed slot not found');
-                }
-                if (newSlot.is_booked) {
-                    throw new Error('Proposed slot is no longer available');
-                }
-                await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: true });
-            }
-
-            // Update booking with new schedule (keep status as approved)
-            booking.session_date = booking.proposed_session_date;
-            booking.session_time = booking.proposed_session_time;
-            booking.slot_id = booking.proposed_slot_id;
-            booking.reschedule_response = 'approved';
-            booking.reschedule_responded_at = new Date();
-            booking.reschedule_count += 1;
-            booking.reschedule_requested = false; // Clear reschedule flag
-            booking.notes = `Reschedule approved by user. New schedule: ${booking.session_date.toISOString().split('T')[0]} ${booking.session_time}`;
-
-            // Clear proposed fields
-            booking.proposed_session_date = null;
-            booking.proposed_session_time = null;
-            booking.proposed_slot_id = null;
-
-            await booking.save();
-
-            // Send comprehensive reschedule response notifications
-            sendRescheduleResponseNotifications(booking, 'approved');
-
-            return res.status(200).send({
-                success: true,
-                message: 'Reschedule approved successfully',
-                data: {
-                    booking_id: booking._id,
-                    booking_number: booking.booking_id,
-                    status: booking.status,
-                    session_date: booking.session_date,
-                    session_time: booking.session_time,
-                    reschedule_count: booking.reschedule_count,
-                },
-            });
-
-        } else {
-            // User rejected the reschedule
-
-            // Release proposed slot if it was reserved
-            if (booking.proposed_slot_id) {
-                await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: false });
-            }
-
-            booking.status = booking.status === 'pending' ? 'pending' : 'approved'; // Revert to previous status
-            booking.reschedule_response = 'rejected';
-            booking.reschedule_rejection_reason = rejection_reason;
-            booking.reschedule_responded_at = new Date();
-            booking.reschedule_requested = false;
-            booking.notes = `Reschedule rejected by user. Reason: ${rejection_reason}`;
-
-            // Clear proposed fields
-            booking.proposed_session_date = null;
-            booking.proposed_session_time = null;
-            booking.proposed_slot_id = null;
-
-            await booking.save();
-
-            // Send comprehensive reschedule response notifications
-            sendRescheduleResponseNotifications(booking, 'rejected');
-
-            return res.status(200).send({
-                success: true,
-                message: 'Reschedule rejected',
-                data: {
-                    booking_id: booking._id,
-                    booking_number: booking.booking_id,
-                    status: booking.status,
-                    rejection_reason: rejection_reason,
-                },
-            });
+            filter.booking_category = booking_category;
         }
+
+        // Search by name or email
+        if (search) {
+            filter.$or = [
+                { first_name: getSearchQuery(search) },
+                { last_name: getSearchQuery(search) },
+                { email: getSearchQuery(search) }
+            ];
+        }
+
+        // Fetch all providers (no pagination)
+        const providers = await User.find(filter, {
+            first_name: 1,
+            last_name: 1,
+            email: 1,
+            phone: 1,
+            dialing_code: 1,
+            picture: 1,
+            booking_category: 1,
+            provider_services: 1,
+            is_verified: 1,
+            active: 1,
+            createdAt: 1
+        })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        // Map providers to include full image URL
+        const providersWithImageUrl = providers.map(provider => ({
+            ...provider,
+            image_url: provider.picture
+                ? (provider.picture.startsWith('http')
+                    ? provider.picture
+                    : `${process.env.BASE_URL}${provider.picture}`)
+                : `${process.env.BASE_URL}uploads/user/dummy.jpg`
+        }));
+
+        return ResponseHandler.success(res, "Providers retrieved successfully", providersWithImageUrl);
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -929,5 +865,5 @@ module.exports = {
     rejectBooking,
     cancelBooking,
     rescheduleBooking,
-    respondToReschedule,
+    getProviders,
 };

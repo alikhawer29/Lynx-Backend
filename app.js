@@ -70,7 +70,7 @@ const serverHandler = async () => {
         await connectDatabase(dbName, connectionString)
         await connectSocket(io)
         await seedAdmin()
-        startBookingStatusCron() // Start cron job
+        // startBookingStatusCron() // Start cron job
     } catch (e) {
         console.log("Error while connecting server :: ", e)
     }

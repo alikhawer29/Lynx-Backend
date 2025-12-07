@@ -15,7 +15,551 @@ const {
     normalize,
 } = require('../../utils')
 const { sendStatusChangeNotification } = require('../../helpers/notification')
-const { removeImage } = require('../../helpers/image')
+const { removeImage } = require('../../helpers/image');
+const ResponseHandler = require('../../utils/response');
+
+const getMyProfile = async (req, res) => {
+    try {
+        let { id } = req.decoded
+
+        let projection = {
+            password: 0,
+            __v: 0
+        }
+
+        let user = await User.findById(id, projection).lean({ virtuals: true })
+
+        let userData = {
+            id: user._id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            email: user.email,
+            phone: user.phone,
+            country_code: user.country_code,
+            dialing_code: user.dialing_code || '+971',
+            role: user.role,
+            picture: user.picture,
+            image_url: user.image_url || `http://localhost:5000/uploads/user/dummy.jpg`
+        };
+
+        return ResponseHandler.success(res, "Profile", userData);
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+}
+
+const updateUser = (async (req, res) => {
+    try {
+
+        let { decoded, body, file } = req
+
+        let validate = objectValidator(body)
+
+        if (!validate) {
+            throw new Error(ERRORS.NULL_FIELD)
+        }
+
+        if (body?.role || body?.email || body?.password) {
+            throw new Error("Email or Password is not allowed to be edit")
+        }
+
+        let payload = { ...body }
+
+        if (file) {
+            let user = await User.findById(decoded.id)
+            if (!user?.picture?.includes("dummy")) {
+                removeImage(user.picture)
+            }
+            payload.picture = normalize(file.path)
+        }
+
+        let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
+
+        let userData = {
+            id: user._id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            email: user.email,
+            phone: user.phone,
+            country_code: user.country_code,
+            dialing_code: user.dialing_code || '+971',
+            role: user.role,
+            picture: user.picture,
+            image_url: user.image_url || `http://localhost:5000/uploads/user/dummy.jpg`
+        };
+
+        return ResponseHandler.success(res, "User Successfully Updated", userData)
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+})
+
+
+const changePassword = (async (req, res) => {
+    try {
+
+        let { id } = req.decoded
+        let { current_password, new_password } = req.body
+
+        if (!current_password || !new_password) {
+            throw new Error("Current Password or New Password is not provided")
+        }
+
+        let user = await User.findById(id)
+
+        let validPassword = await comparePassword(current_password, user.password)
+
+        if (!validPassword) {
+            throw new Error("Current Password doesn't match")
+        }
+
+        await User.findOneAndUpdate({ _id: id }, { password: new_password })
+
+        return ResponseHandler.success(res, "Password reset successfully")
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+})
+
+const getHome = (async (req, res) => {
+    try {
+
+        let { id } = req.decoded
+
+        let total_users = await User.countDocuments({ role: 'user' })
+        let total_providers = await User.countDocuments({ role: 'provider' })
+        let new_bookings = await Booking.countDocuments({ status: GENERAL_STATUS.PENDING })
+        let earningsData = await Payment.aggregate([
+            {
+                $match: {
+                    payment_status: "succeeded",   // include only successful payments
+                    deleted: false            // if you use soft delete
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    total_earnings: { $sum: "$amount" }
+                }
+            }
+        ]);
+
+        let total_earnings = earningsData.length ? earningsData[0].total_earnings : 0;
+
+        let data = {
+            total_users,
+            total_providers,
+            new_bookings,
+            total_earnings,
+        }
+
+        return ResponseHandler.success(res, "Home Data", data);
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+})
+
+const getUser = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active, new_requests } = req.query;
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        let filter = {};
+        let sort = {};
+
+        // Role filter - default to 'user' if not specified
+        filter.role = role && role !== 'undefined' ? role : 'user';
+
+        // Search filter
+        if (search) {
+            filter.$or = [
+                { first_name: getSearchQuery(search) },
+                { last_name: getSearchQuery(search) },
+                { email: getSearchQuery(search) }
+            ];
+        }
+
+        // Status filter
+        if (status) {
+            if (status === GENERAL_STATUS.PENDING) {
+                filter = {
+                    ...filter,
+                    status,
+                    details: { $exists: true }
+                };
+            } else {
+                filter = { ...filter, status };
+            }
+        }
+
+        // New requests filter (for providers)
+        if (new_requests !== undefined) {
+            filter.is_verified = new_requests === 'true' ? false : true;
+        }
+
+        // Active filter
+        if (req.query.hasOwnProperty("active") && active != null) {
+            filter.active = active;
+        }
+
+        // Date filter
+        if (from || to) {
+            filter.createdAt = getDateRangeQuery(from, to);
+        }
+
+        // Sorting
+        sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
+
+        // Build projection - conditionally include interview field
+        let projection = {
+            first_name: 1,
+            last_name: 1,
+            status: 1,
+            email: 1,
+            createdAt: 1,
+            active: 1,
+            role: 1
+        };
+
+        // Add interview field if new_requests is provided
+        if (new_requests == 'true') {
+            projection.interview = 1;
+        }
+
+        // Fetch data
+        let users = await User.find(filter, projection)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        // If new_requests is provided, ensure interview field is present (even if null)
+        if (new_requests == 'true') {
+            users = users.map(user => ({
+                ...user,
+                interview: user.interview || 'pending'
+            }));
+        }
+
+        let total = await User.countDocuments(filter);
+
+        // Build base URL (same as Laravel)
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
+
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: users
+        });
+
+        return ResponseHandler.success(res, "Users retrieved successfully", paginated);
+
+    } catch (e) {
+        console.error("Error in getUser:", e);
+        return ResponseHandler.error(res, e.message || "Failed to fetch users", 500);
+    }
+};
+
+
+const getUserById = async (req, res) => {
+    try {
+        const { decoded, params } = req
+        let { id } = params
+
+        let user = await User.findById(id).select('-password').exec()
+
+        return ResponseHandler.success(res, "User Details", user);
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+}
+
+const updateUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        // Find user and toggle status in one operation
+        const user = await User.findById(id)
+
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        const previousStatus = user.active
+        const newStatus = !previousStatus
+
+        // Toggle and save
+        user.active = newStatus
+        await user.save()
+
+        // Send notification to user
+        await sendStatusChangeNotification(user, newStatus, req.decoded)
+
+        // Convert to object and remove password
+        const userData = user.toObject()
+        delete userData.password
+
+        return ResponseHandler.success(res, `User ${newStatus ? 'activated' : 'deactivated'} successfully`, userData)
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+}
+
+// Admin - User Appointments
+const getAppointmentsByUser = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, search, from, to, sortBy, status, price_type } = req.query;
+
+        const { id } = req.params;
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        // ---------------------------
+        // BUILD FILTER PROPERLY
+        // ---------------------------
+        let filter = {};
+
+        // User filter (parent/user appointments)
+        filter.user_id = id;
+
+        // Search filter - search by booking_id, price_type, or status
+        if (search) {
+            filter.$or = [
+                { booking_id: getSearchQuery(search) },
+                { price_type: getSearchQuery(search) },
+                { status: getSearchQuery(search) }
+            ];
+        }
+
+        // Status filter
+        if (status) {
+            filter.status = status;
+        }
+
+        // Price type filter
+        if (price_type) {
+            filter.price_type = price_type;
+        }
+
+        // Appointment date filter (session_date)
+        if (from || to) {
+            filter.session_date = getDateRangeQuery(from, to);
+        }
+
+        // Sorting - default to session_date
+        let sort = sortBy ? { [sortBy]: -1 } : { session_date: -1 };
+
+        // ---------------------------
+        // FETCH APPOINTMENTS
+        // ---------------------------
+        let appointments = await Booking.find(filter, {
+            booking_id: 1,
+            session_date: 1,
+            price_type: 1,
+            price: 1,
+            status: 1
+        })
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        let total = await Booking.countDocuments(filter);
+
+        // Base URL
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: appointments
+        });
+
+        return ResponseHandler.success(res, "User Appointments", paginated);
+    } catch (e) {
+        console.error("Error in getAppointmentsByUser:", e);
+        return ResponseHandler.error(res, e.message || "Failed to fetch appointments", 500);
+    }
+};
+
+// Admin - Provider Appointments
+const getAppointmentsByProvider = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, search, from, to, sortBy, booking_status, price_type } = req.query;
+
+        const { id } = req.params;
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        // ---------------------------
+        // BUILD FILTER PROPERLY
+        // ---------------------------
+        let filter = {};
+
+        // Provider filter
+        filter.provider_id = id;
+
+        // Search filter - search by booking_id, price_type, or booking_status
+        if (search) {
+            filter.$or = [
+                { booking_id: getSearchQuery(search) },
+                { price_type: getSearchQuery(search) },
+                { booking_status: getSearchQuery(search) }
+            ];
+        }
+
+        // Booking status filter
+        if (booking_status) {
+            filter.booking_status = booking_status;
+        }
+
+        // Price type filter
+        if (price_type) {
+            filter.price_type = price_type;
+        }
+
+        // Appointment date filter (session_date)
+        if (from || to) {
+            filter.session_date = getDateRangeQuery(from, to);
+        }
+
+        // Sorting - default to session_date
+        let sort = sortBy ? { [sortBy]: -1 } : { session_date: -1 };
+
+        // ---------------------------
+        // FETCH APPOINTMENTS
+        // ---------------------------
+        let appointments = await Booking.find(filter, {
+            booking_id: 1,
+            category_id: 1,
+            session_date: 1,
+            price_type: 1,
+            price: 1,
+            booking_status: 1
+        })
+            .populate('category_id', 'name')
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        let total = await Booking.countDocuments(filter);
+
+        // Base URL
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
+
+        let paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: appointments
+        });
+
+        return ResponseHandler.success(res, "Provider Appointments", paginated);
+
+    } catch (e) {
+        console.error("Error in getAppointmentsByProvider:", e);
+        return ResponseHandler.error(res, e.message || "Failed to fetch appointments", 500);
+    }
+};
+
+const scheduleInterview = async (req, res) => {
+    try {
+        let { body, params } = req
+
+        let validate = objectValidator(body)
+
+        if (!validate) {
+            throw new Error(ERRORS.NULL_FIELD)
+        }
+
+        let user = await User.findById(params?.id)
+
+        if (!user) {
+            throw new Error("User not found")
+        }
+
+        console.log(user.interview, 'user.interview')
+
+        // Check if interview already exists and is scheduled
+        if (user.interview && user.interview.status === 'scheduled') {
+            throw new Error("User already has a scheduled interview")
+        }
+
+        // Convert date string to Date object
+        const [day, month, year] = body.date.split('-')
+        const interviewDate = new Date(`${year}-${month}-${day}`)
+
+        // Validate date
+        if (isNaN(interviewDate.getTime())) {
+            throw new Error("Invalid date format. Use DD-MM-YYYY")
+        }
+
+        // Validate time format
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+        if (!timeRegex.test(body.start_time) || !timeRegex.test(body.end_time)) {
+            throw new Error("Invalid time format. Use HH:MM (24-hour format)")
+        }
+
+        // Validate end time is after start time
+        const startTime = new Date(`1970-01-01T${body.start_time}:00`)
+        const endTime = new Date(`1970-01-01T${body.end_time}:00`)
+        if (endTime <= startTime) {
+            throw new Error("End time must be after start time")
+        }
+
+        // Create/Update interview object
+        user.interview = {
+            date: interviewDate,
+            start_time: body.start_time,
+            end_time: body.end_time,
+            description: body.description,
+            status: 'scheduled',
+            scheduled_at: new Date(),
+            updated_at: new Date()
+        }
+
+        await user.save()
+
+        return ResponseHandler.success(res, "Interview scheduled successfully", {
+            interview: {
+                date: body.date, // Return original format
+                start_time: user.interview.start_time,
+                end_time: user.interview.end_time,
+                description: user.interview.description,
+                status: user.interview.status,
+                scheduled_at: user.interview.scheduled_at
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+}
+
 
 const completeProfile = (async (req, res) => {
     try {
@@ -54,104 +598,7 @@ const completeProfile = (async (req, res) => {
     }
 })
 
-const getUser = async (req, res) => {
-    try {
-        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active, new_requests } = req.query;
 
-        let { limit, skip } = paginationHandler(page, per_page);
-
-        let filter = {};
-        let sort = {};
-
-        // Role filter
-        filter.role = role && role !== 'undefined' ? role : 'user';
-
-        // Search filter
-        // if (search) {
-        //     filter = { ...filter, name: getSearchQuery(search) };
-        // }
-
-        if (search) {
-            filter.$or = [
-                { first_name: getSearchQuery(search) },
-                { last_name: getSearchQuery(search) }
-            ];
-        }
-
-        // Status filter
-        if (status) {
-            if (status === GENERAL_STATUS.PENDING) {
-                filter = {
-                    ...filter,
-                    status,
-                    details: { $exists: true }
-                };
-            } else {
-                filter = { ...filter, status };
-            }
-        }
-
-        //for provider new requests
-        if (new_requests) {
-            filter.is_verified = new_requests === 'true' ? false : true
-        }
-
-        // Active filter
-        if (req.query.hasOwnProperty("active") && active != null) {
-            filter.active = active;
-        }
-
-        // Date filter
-        if (from || to) {
-            filter.createdAt = getDateRangeQuery(from, to);
-        }
-
-        // Sorting
-        sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
-
-        // Fetch data
-        let users = await User.find(filter, { password: 0 })
-            .sort(sort)
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        let total = await User.countDocuments(filter);
-
-        // Build base URL (same as Laravel)
-        const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
-
-        let paginated = paginateResponse({
-            page,
-            per_page,
-            total,
-            baseUrl,
-            data: users
-        });
-
-        return res.json(response.success("User Listing", paginated));
-
-    } catch (e) {
-        console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "User Listing"));
-    }
-};
-
-//Admin
-const getUserById = async (req, res) => {
-    try {
-        const { decoded, params } = req
-        let { id } = params
-
-        let user = await User.findById(id).select('-password').exec()
-
-        res.json(response.success("User Details", user));
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "User Details"));
-    }
-}
 
 const verifyUser = async (req, res) => {
     try {
@@ -160,45 +607,30 @@ const verifyUser = async (req, res) => {
 
         // Validate is_verified is boolean
         if (typeof is_verified !== "boolean") {
-            return res.status(400).send({
-                success: false,
-                message: "is_verified must be boolean"
-            });
+            return ResponseHandler.error(res, "is_verified must be boolean", 400);
         }
 
         const user = await User.findById(id);
 
         if (!user) {
-            return res.status(404).send({
-                success: false,
-                message: "User not found"
-            });
+            return ResponseHandler.error(res, "User not found", 404);
         }
 
         // If verification is false, reject_reason is required
         if (is_verified === false) {
             if (!reject_reason || reject_reason.trim() === '') {
-                return res.status(400).send({
-                    success: false,
-                    message: "reject_reason is required when is_verified is false"
-                });
+                return ResponseHandler.error(res, "reject_reason is required when is_verified is false", 400);
             }
         }
 
         // If verification is true, service_id and booking_category are required
         if (is_verified === true) {
             if (!service_id || !Array.isArray(service_id) || service_id.length === 0) {
-                return res.status(400).send({
-                    success: false,
-                    message: "service_id array is required when is_verified is true"
-                });
+                return ResponseHandler.error(res, "service_id array is required when is_verified is true", 400);
             }
 
             if (!booking_category || !['normal', 'premium'].includes(booking_category)) {
-                return res.status(400).send({
-                    success: false,
-                    message: "booking_category is required and must be 'normal' or 'premium'"
-                });
+                return ResponseHandler.error(res, "booking_category is required and must be 'normal' or 'premium'", 400);
             }
         }
 
@@ -224,289 +656,67 @@ const verifyUser = async (req, res) => {
             ? "Provider approved successfully with assigned services"
             : "Provider rejected successfully";
 
-        return res.json(response.success(message, {
+        return ResponseHandler.success(res, message, {
             id: user._id,
             is_verified: user.is_verified,
             active: user.active,
             reject_reason: user.reject_reason || null,
             provider_services: user.provider_services || [],
             booking_category: user.booking_category || null
-        }
-        ));
+        });
 
 
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
-
-const updateUserStatus = async (req, res) => {
+const upgradeAccount = async (req, res) => {
     try {
-        const { id } = req.params
+        const { id } = req.params;
+        const { is_approved, reject_reason } = req.body;
 
-        // Find user and toggle status in one operation
-        const user = await User.findById(id)
+        // Validate is_approved is boolean
+        if (typeof is_approved !== "boolean") {
+            return ResponseHandler.error(res, "is_approved must be boolean", 400);
+        }
+
+        const user = await User.findById(id);
 
         if (!user) {
-            return res.status(404).send({
-                success: false,
-                message: "User not found"
-            })
+            return ResponseHandler.error(res, "User not found", 404);
         }
 
-        const previousStatus = user.active
-        const newStatus = !previousStatus
-
-        // Toggle and save
-        user.active = newStatus
-        await user.save()
-
-        // Send notification to user
-        await sendStatusChangeNotification(user, newStatus, req.decoded)
-
-        // Convert to object and remove password
-        const userData = user.toObject()
-        delete userData.password
-
-        return res.status(200).send({
-            success: true,
-            message: `User ${newStatus ? 'activated' : 'deactivated'} successfully`,
-            data: userData
-        })
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
-    }
-}
-
-const updateUser = (async (req, res) => {
-    try {
-
-        let { decoded, body, file } = req
-
-        let validate = objectValidator(body)
-
-        if (!validate) {
-            throw new Error(ERRORS.NULL_FIELD)
-        }
-
-        if (body?.role || body?.email || body?.password) {
-            throw new Error("Email or Password is not allowed to be edit")
-        }
-
-        let payload = { ...body }
-
-        if (file) {
-            let user = await User.findById(decoded.id)
-            if (!user?.picture?.includes("dummy")) {
-                removeImage(user.picture)
-            }
-            payload.picture = normalize(file.path)
-        }
-
-        let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
-
-
-        return res.status(200).send({
-            success: true,
-            message: "User Successfully Updated",
-            data: user
-        })
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
-    }
-})
-
-// Admin - User Appointments
-const getAppointmentsByUser = async (req, res) => {
-    try {
-        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active } = req.query;
-
-        const { id } = req.params;
-
-        let { limit, skip } = paginationHandler(page, per_page);
-
-        // ---------------------------
-        // BUILD FILTER PROPERLY
-        // ---------------------------
-        let filter = {};
-
-        // User filter (parent/user appointments)
-        filter.user_id = id;
-
-        // Role filter
-        if (role && role !== "undefined") {
-            filter.role = role;
-        }
-
-        // Search filter
-        if (search) {
-            filter.name = getSearchQuery(search);
-        }
-
-        // Status filter
-        if (status) {
-            if (status === GENERAL_STATUS.PENDING) {
-                filter.status = status;
-                filter.details = { $exists: true };
-            } else {
-                filter.status = status;
+        // If approval is false, reject_reason is required
+        if (is_approved === false) {
+            if (!reject_reason || reject_reason.trim() === '') {
+                return ResponseHandler.error(res, "reject_reason is required when is_approved is false", 400);
             }
         }
 
-        // Active filter
-        if (req.query.hasOwnProperty("active") && active !== undefined) {
-            filter.active = active;
-        }
+        // Update user's account approval status
+        user.booking_category = is_approved ? 'premium' : 'normal';
+        user.upgrade_reject_reason = reject_reason || null;
+        await user.save();
 
-        // Date filter
-        if (from || to) {
-            filter.createdAt = getDateRangeQuery(from, to);
-        }
+        const message = is_approved
+            ? "Account upgraded successfully"
+            : "Account upgrade request rejected";
 
-        // Sorting
-        let sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
-
-        // ---------------------------
-        // FETCH APPOINTMENTS
-        // ---------------------------
-        let appointments = await Booking.find(filter)
-            .sort(sort)
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        let total = await Booking.countDocuments(filter);
-
-        // Base URL
-        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
-
-        let paginated = paginateResponse({
-            page,
-            per_page,
-            total,
-            baseUrl,
-            data: appointments
+        return ResponseHandler.success(res, message, {
+            id: user._id,
+            booking_category: user.booking_category,
+            reject_reason: user.upgrade_reject_reason || null
         });
 
-        return res.json(response.success("User Appointments", paginated));
-
     } catch (e) {
-        console.log("Error :: ", e);
-        return res.json(response.error(e.message, 400, "User Appointments"));
+        console.log("Error Message :: ", e);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
-// Admin - Provider Appointments
-const getAppointmentsByProvider = async (req, res) => {
-    try {
-        let { page = 1, per_page = 10, role, search, from, to, sortBy, status, active } = req.query;
-
-        const { id } = req.params;
-
-        let { limit, skip } = paginationHandler(page, per_page);
-
-        // ---------------------------
-        // BUILD FILTER PROPERLY
-        // ---------------------------
-        let filter = {};
-
-        // User filter (parent/user appointments)
-        filter.provider_id = id;
-
-        // Role filter
-        if (role && role !== "undefined") {
-            filter.role = role;
-        }
-
-        // Search filter
-        if (search) {
-            filter.name = getSearchQuery(search);
-        }
-
-        // Status filter
-        if (status) {
-            if (status === GENERAL_STATUS.PENDING) {
-                filter.status = status;
-                filter.details = { $exists: true };
-            } else {
-                filter.status = status;
-            }
-        }
-
-        if (status) {
-            // Always filter by main status first
-            filter.status = GENERAL_STATUS.APPROVED;
-
-            // If booking is approved, apply booking_status filter
-            if (status === GENERAL_STATUS.APPROVED && booking_status) {
-                if (
-                    booking_status === BOOKING_TIME_STATUS.UPCOMING ||
-                    booking_status === BOOKING_TIME_STATUS.IN_PROGRESS ||
-                    booking_status === BOOKING_TIME_STATUS.PAST
-                ) {
-                    filter.booking_status = booking_status;
-                }
-            }
-        }
-
-        // Active filter
-        if (req.query.hasOwnProperty("active") && active !== undefined) {
-            filter.active = active;
-        }
-
-        // Date filter
-        if (from || to) {
-            filter.createdAt = getDateRangeQuery(from, to);
-        }
-
-        // Sorting
-        let sort = sortBy ? { [sortBy]: -1 } : { createdAt: -1 };
-
-        // ---------------------------
-        // FETCH APPOINTMENTS
-        // ---------------------------
-        let appointments = await Booking.find(filter)
-            .sort(sort)
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        let total = await Booking.countDocuments(filter);
-
-        // Base URL
-        const baseUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
-
-        let paginated = paginateResponse({
-            page,
-            per_page,
-            total,
-            baseUrl,
-            data: appointments
-        });
-
-        return res.json(response.success("Provider Appointments", paginated));
-
-    } catch (e) {
-        console.log("Error :: ", e);
-        return res.json(response.error(e.message, 400, "Provider Appointments"));
-    }
-};
 
 //Admin
 const handleStatus = (async (req, res) => {
@@ -576,98 +786,6 @@ const deleteUser = (async (req, res) => {
     }
 })
 
-const changePassword = (async (req, res) => {
-    try {
-
-        let { id } = req.decoded
-        let { current_password, new_password } = req.body
-
-        if (!current_password || !new_password) {
-            throw new Error("Current Password or New Password is not provided")
-        }
-
-        let user = await User.findById(id)
-
-        let validPassword = await comparePassword(current_password, user.password)
-
-        if (!validPassword) {
-            throw new Error("Current Password doesn't match")
-        }
-
-        await User.findOneAndUpdate({ _id: id }, { password: new_password })
-
-        return res.status(200).send({
-            success: true,
-            message: "Password reset successfully"
-        })
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
-    }
-})
-
-const getMyProfile = async (req, res) => {
-    try {
-        let { id } = req.decoded
-
-        let projection = {
-            password: 0,
-            __v: 0
-        }
-
-        let user = await User.findById(id, projection).lean({ virtuals: true })
-
-        return res.json(response.success("Profile", user));
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Profile"));
-    }
-}
-
-const getHome = (async (req, res) => {
-    try {
-
-        let { id } = req.decoded
-
-        let total_users = await User.countDocuments({ role: 'user' })
-        let total_providers = await User.countDocuments({ role: 'provider' })
-        let new_bookings = await Booking.countDocuments({ status: GENERAL_STATUS.PENDING })
-        let earningsData = await Payment.aggregate([
-            {
-                $match: {
-                    payment_status: "succeeded",   // include only successful payments
-                    deleted: false            // if you use soft delete
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    total_earnings: { $sum: "$amount" }
-                }
-            }
-        ]);
-
-        let total_earnings = earningsData.length ? earningsData[0].total_earnings : 0;
-
-        let data = {
-            total_users,
-            total_providers,
-            new_bookings,
-            total_earnings,
-        }
-
-        return res.json(response.success("Home Data", data));
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Home Data"));
-    }
-})
 
 const handleFavoriteServices = (async (req, res) => {
     try {
@@ -744,142 +862,10 @@ const logout = (async (req, res) => {
     }
 })
 
-const scheduleInterview = async (req, res) => {
-    try {
-        let { body, params } = req
-
-        let validate = objectValidator(body)
-
-        if (!validate) {
-            throw new Error(ERRORS.NULL_FIELD)
-        }
-
-        let user = await User.findById(params?.id)
-
-        if (!user) {
-            throw new Error("User not found")
-        }
-
-        console.log(user.interview, 'user.interview')
-
-        // Check if interview already exists and is scheduled
-        if (user.interview && user.interview.status === 'scheduled') {
-            throw new Error("User already has a scheduled interview")
-        }
-
-        // Convert date string to Date object
-        const [day, month, year] = body.date.split('-')
-        const interviewDate = new Date(`${year}-${month}-${day}`)
-
-        // Validate date
-        if (isNaN(interviewDate.getTime())) {
-            throw new Error("Invalid date format. Use DD-MM-YYYY")
-        }
-
-        // Validate time format
-        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-        if (!timeRegex.test(body.start_time) || !timeRegex.test(body.end_time)) {
-            throw new Error("Invalid time format. Use HH:MM (24-hour format)")
-        }
-
-        // Validate end time is after start time
-        const startTime = new Date(`1970-01-01T${body.start_time}:00`)
-        const endTime = new Date(`1970-01-01T${body.end_time}:00`)
-        if (endTime <= startTime) {
-            throw new Error("End time must be after start time")
-        }
-
-        // Create/Update interview object
-        user.interview = {
-            date: interviewDate,
-            start_time: body.start_time,
-            end_time: body.end_time,
-            description: body.description,
-            status: 'scheduled',
-            scheduled_at: new Date(),
-            updated_at: new Date()
-        }
-
-        await user.save()
-
-        return res.json(response.success("Interview scheduled successfully", {
-            interview: {
-                date: body.date, // Return original format
-                start_time: user.interview.start_time,
-                end_time: user.interview.end_time,
-                description: user.interview.description,
-                status: user.interview.status,
-                scheduled_at: user.interview.scheduled_at
-            }
-        }));
-
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Schedule Interview"));
-    }
 
 
 
 
-}
-
-
-const upgradeAccount = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { is_approved, reject_reason } = req.body;
-
-        // Validate is_approved is boolean
-        if (typeof is_approved !== "boolean") {
-            return res.status(400).send({
-                success: false,
-                message: "is_approved must be boolean"
-            });
-        }
-
-        const user = await User.findById(id);
-
-        if (!user) {
-            return res.status(404).send({
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        // If approval is false, reject_reason is required
-        if (is_approved === false) {
-            if (!reject_reason || reject_reason.trim() === '') {
-                return res.status(400).send({
-                    success: false,
-                    message: "reject_reason is required when is_approved is false"
-                });
-            }
-        }
-
-        // Update user's account approval status
-        user.booking_category = is_approved ? 'premium' : 'normal';
-        user.upgrade_reject_reason = reject_reason || null;
-        await user.save();
-
-        const message = is_approved
-            ? "Account upgraded successfully"
-            : "Account upgrade request rejected";
-
-        return res.json(response.success(message, {
-            id: user._id,
-            booking_category: user.booking_category,
-            reject_reason: user.upgrade_reject_reason || null
-        }
-        ));
-
-    } catch (e) {
-        console.log("Error Message :: ", e);
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        });
-    }
-};
 module.exports = {
     completeProfile,
     getUser,

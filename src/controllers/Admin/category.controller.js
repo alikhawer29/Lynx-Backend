@@ -1,7 +1,7 @@
 const { default: mongoose } = require('mongoose')
 const Category = require('../../models/category.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, paginateResponse, normalize } = require('../../utils')
-const response = require('../../utils/response')
+const ResponseHandler = require('../../utils/response')
 
 const createCategory = (async (req, res) => {
     try {
@@ -23,11 +23,11 @@ const createCategory = (async (req, res) => {
 
         await category.save()
 
-        return res.json(response.success("Category Successfully Saved", category));
+        return ResponseHandler.success(res, "Category Successfully Saved", category);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Category creation"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -75,11 +75,11 @@ const getCategory = async (req, res) => {
             data: categories
         });
 
-        return res.json(response.success("Category listing retrieved successfully", paginated));
+        return ResponseHandler.success(res, "Category listing retrieved successfully", paginated);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Category listing"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -90,7 +90,7 @@ const getCategoryById = async (req, res) => {
 
         // Validate ObjectId
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json(response.error("Invalid category ID format", 400));
+            return ResponseHandler.error(res, "Invalid category ID format", 400);
         }
 
         // Use lean with virtuals enabled
@@ -100,12 +100,11 @@ const getCategoryById = async (req, res) => {
             throw new Error(ERRORS.CATEGORY_NOTEXIST)
         }
 
-        return res.status(200).json(response.success("Category retrieved successfully", category));
+        return ResponseHandler.success(res, "Category retrieved successfully", category);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -125,13 +124,11 @@ const updateCategory = async (req, res) => {
 
         let category = await Category.findByIdAndUpdate(id, { $set: payload }, { new: true }).lean({ virtuals: true });
 
-        return res.status(200).json(response.success("Category Updated Successfully", category));
-
+        return ResponseHandler.success(res, "Category Updated Successfully", category);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -145,12 +142,11 @@ const deleteCategory = (async (req, res) => {
         let category = await Category.findById(id)
         await category.trash()
 
-        return res.status(200).json(response.success("Category Deleted Successfully"));
+        return ResponseHandler.success(res, "Category Deleted Successfully");
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return res.status(errorResponse.statusCode).json(errorResponse);
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 

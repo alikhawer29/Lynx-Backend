@@ -1,5 +1,6 @@
 const Feedback = require('../../models/feedback.model');
 const { paginationHandler, getSearchQuery, getDateRangeQuery, paginateResponse } = require('../../utils');
+const ResponseHandler = require('../../utils/response');
 const response = require('../../utils/response')
 
 
@@ -76,11 +77,11 @@ const getFeedback = async (req, res) => {
             data: transformedFeedbacks,
         });
 
-        return res.json(response.success("Feedbacks retrieved successfully", paginated));
+        return ResponseHandler.success(res, "Feedbacks retrieved successfully", paginated);
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Feedback Retrieval"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -128,11 +129,11 @@ const getFeedbackById = async (req, res) => {
             updatedAt: feedback.updatedAt
         }
 
-        return res.json(response.success("Feedback retrieved successfully", transformedFeedback));
+        return ResponseHandler.success(res, "Feedback retrieved successfully", transformedFeedback);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Feedback Retrieval"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 }
 

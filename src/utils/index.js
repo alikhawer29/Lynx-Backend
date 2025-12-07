@@ -146,7 +146,7 @@ const paginationHandler = (page, per_page) => {
 
 }
 
-function paginateResponse({ page, per_page, total, baseUrl, data }) {
+function paginateResponse({ page, per_page, total, baseUrl, data, earnings = null }) {
 
     page = Number(page);
     per_page = Number(per_page);
@@ -191,7 +191,8 @@ function paginateResponse({ page, per_page, total, baseUrl, data }) {
         per_page,
         prev_page_url: page > 1 ? `${baseUrl}?page=${page - 1}` : null,
         to: (page - 1) * per_page + data.length,
-        total
+        total,
+        earnings
     };
 }
 

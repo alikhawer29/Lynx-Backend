@@ -1,6 +1,6 @@
 const Content = require('../../models/content.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, CONTENT_TYPES, normalize, paginateResponse } = require('../../utils')
-const response = require('../../utils/response')
+const ResponseHandler = require('../../utils/response')
 
 const createContent = (async (req, res) => {
     try {
@@ -30,18 +30,11 @@ const createContent = (async (req, res) => {
 
         await content.save()
 
-        return res.status(200).send({
-            success: true,
-            message: "Content Successfully Saved",
-            data: content
-        })
+        return ResponseHandler.success(res, "Content Successfully Saved", content)
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -100,10 +93,10 @@ const getContent = async (req, res) => {
             data: contents
         });
 
-        return res.json(response.success("Content listing retrieved successfully", paginated));
+        return ResponseHandler.success(res, "Content listing retrieved successfully", paginated);
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Content Listing"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -129,11 +122,11 @@ const getContentById = (async (req, res) => {
 
         }
 
-        return res.json(response.success("Content retrieved successfully", content));
+        return ResponseHandler.success(res, "Content retrieved successfully", content);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Content retrieval"));
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -145,18 +138,11 @@ const updateContent = (async (req, res) => {
 
         let content = await Content.findByIdAndUpdate(id, { $set: body }, { new: true })
 
-        return res.status(200).send({
-            success: true,
-            message: "Content Updated Successfully",
-            data: content
-        })
+        return ResponseHandler.success(res, "Content Updated Successfully", content)
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -169,17 +155,11 @@ const deleteContent = (async (req, res) => {
         let content = await Content.findById(id)
         await content.trash()
 
-        return res.status(200).send({
-            success: true,
-            message: "Content Deleted Successfully",
-        })
+        return ResponseHandler.success(res, "Content Deleted Successfully")
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 

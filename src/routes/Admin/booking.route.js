@@ -13,6 +13,14 @@ router.get(
     bookingController.getBookings
 );
 
+// Get Providers (Admin Only) - MUST be before /:id route
+router.get(
+    '/providers',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    bookingController.getProviders
+);
+
 // Get Booking by ID
 router.get(
     '/:id',
@@ -50,14 +58,6 @@ router.post(
     AuthVerifier,
     RestrictAccess([ROLES.ADMIN]),
     bookingController.rescheduleBooking
-);
-
-// User Response to Reschedule (Approve/Reject)
-router.post(
-    '/reschedule-response/:id',
-    AuthVerifier,
-    RestrictAccess([ROLES.USER]),
-    bookingController.respondToReschedule
 );
 
 // ============================
