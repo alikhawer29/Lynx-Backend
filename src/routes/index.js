@@ -29,6 +29,9 @@ const adminNotificationRoutes = require('./Admin/notification.route')
 const adminSlotRoutes = require('./Admin/slot.route')
 const adminFeedbackRoutes = require('./Admin/feedback.route')
 const adminPaymentRoutes = require('./Admin/payment.route')
+const adminReportRoutes = require('./Admin/report.route')
+const adminFaqRoutes = require('./Admin/faq.route')
+const adminChatRoutes = require('./Admin/chat.route')
 
 //ADMIN
 
@@ -52,6 +55,11 @@ router.use('/admin/feedback', adminFeedbackRoutes)
 
 router.use('/admin/payments', adminPaymentRoutes)
 
+router.use('/admin/reports', adminReportRoutes)
+
+router.use('/admin/faq', adminFaqRoutes)
+
+router.use('/admin/chat', adminChatRoutes)
 
 //USER
 
