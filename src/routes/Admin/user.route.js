@@ -33,6 +33,9 @@ router.patch('/provider/schedule-interview/:id', AuthVerifier, RestrictAccess([R
 
 router.patch('/provider/upgrade-account/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.upgradeAccount)
 
+router.get('/unassigned-services', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUnassignedServices)
+
+router.post('/assign-service/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.assignServiceToProvider)
 
 
 

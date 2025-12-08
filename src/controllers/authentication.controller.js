@@ -221,8 +221,58 @@ const signup = (async (req, res) => {
             payload.picture = normalize(filesMap['image'].path)
         }
 
-        // Handle provider certifications
+        // Handle provider-specific fields
         if (role === ROLES.PROVIDER) {
+
+            // Validate service_delivery_mode
+            // const { provider_lat, provider_lng, provider_address } = body;
+
+
+            // // If provider_location, validate location fields
+            // if (!provider_lat || !provider_lng || !provider_address) {
+            //     throw new Error("provider_lat, provider_lng, and provider_address are required when service_delivery_mode is 'provider_location'");
+            // }
+
+            // // Validate latitude and longitude
+            // const lat = parseFloat(provider_lat);
+            // const lng = parseFloat(provider_lng);
+
+            // if (isNaN(lat) || lat < -90 || lat > 90) {
+            //     throw new Error("provider_lat must be a valid latitude between -90 and 90");
+            // }
+
+            // if (isNaN(lng) || lng < -180 || lng > 180) {
+            //     throw new Error("provider_lng must be a valid longitude between -180 and 180");
+            // }
+
+            // payload.provider_lat = lat;
+            // payload.provider_lng = lng;
+            // payload.provider_address = provider_address;
+
+
+            // Handle resume upload
+            if (filesMap['resume']) {
+                // Validate file type (PDF, DOC, DOCX)
+                const allowedMimeTypes = [
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                ];
+
+                if (!allowedMimeTypes.includes(filesMap['resume'].mimetype)) {
+                    throw new Error("Resume must be a PDF, DOC, or DOCX file");
+                }
+
+                // Validate file size (max 5MB)
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                if (filesMap['resume'].size > maxSize) {
+                    throw new Error("Resume file size must be less than 5MB");
+                }
+
+                const resumePath = normalize(filesMap['resume'].path);
+                payload.resume = resumePath;
+            }
+
             // Build certifications array from form fields
             let certifications = []
 
@@ -296,9 +346,6 @@ const signup = (async (req, res) => {
 
         let user = new User(payload)
         await user.save()
-
-        // let conversation = new Conversation({ participants: [user._id] })
-        // await conversation.save()
 
         const message = role === ROLES.PROVIDER
             ? "Service Provider Successfully Registered. Your account will be verified by admin."

@@ -166,7 +166,32 @@ const userSchema = mongoose.Schema({
             type: Date,
             default: null  // ✅ Change to null
         }
-    }
+    },
+    // Add resume field for providers
+    resume: {
+        type: String,
+        default: null
+    },
+
+    // Provider location details (required when service_delivery_mode is 'provider_location')
+    provider_lat: {
+        type: Number,
+        required: function () {
+            return this.role === ROLES.PROVIDER && this.service_delivery_mode === 'provider_location'
+        }
+    },
+    provider_lng: {
+        type: Number,
+        required: function () {
+            return this.role === ROLES.PROVIDER && this.service_delivery_mode === 'provider_location'
+        }
+    },
+    provider_address: {
+        type: String,
+        required: function () {
+            return this.role === ROLES.PROVIDER && this.service_delivery_mode === 'provider_location'
+        }
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
@@ -196,6 +221,18 @@ userSchema.pre('findOneAndUpdate', (async function (next) {
 userSchema.index({ email: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } })
 userSchema.index({ location: '2dsphere' })
 
+userSchema.virtual('resume_url').get(function () {
+    if (!this.resume) {
+        return null
+    }
+    if (this.resume.startsWith('http')) {
+        return this.resume
+    }
+    // Remove trailing slash from BASE_URL and add leading slash to path if needed
+    const baseUrl = process.env.BASE_URL.replace(/\/$/, '')
+    const path = this.resume.startsWith('/') ? this.resume : `/${this.resume}`
+    return `${baseUrl}${path}`
+})
 
 userSchema.virtual('image_url').get(function () {
     if (!this.picture) {

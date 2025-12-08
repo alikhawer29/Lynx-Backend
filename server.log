@@ -1,19 +1,14 @@
 nohup: ignoring input
-❌ Error loading SSL certificates: ENOENT: no such file or directory, open '/var/www/html/ssl/customdevnewonli.key'
-⚠️  Falling back to HTTP server
+🔍 Using direct SSL path: /home/customdevnewonli/public_html/ssl
+❌ Error loading SSL certificates with direct path: ENOENT: no such file or directory, open '/home/customdevnewonli/public_html/ssl/customdevnewonli.key'
 ⚠️  HTTP server enabled (not recommended for production/iOS)
-(node:840746) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:392660) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:840746) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
-(node:840746) [MONGOOSE] Warning: Duplicate schema index on {"booking_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
-(node:840746) [MONGOOSE] Warning: Duplicate schema index on {"status":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
-(node:840746) [MONGOOSE] Warning: Duplicate schema index on {"user_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:392660) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:392660) [MONGOOSE] Warning: Duplicate schema index on {"booking_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:392660) [MONGOOSE] Warning: Duplicate schema index on {"status":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:392660) [MONGOOSE] Warning: Duplicate schema index on {"user_id":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 Server started 🚀 Running on port 5000.
-(node:840746) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
-(node:840746) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:392660) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:392660) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
 Database connected successfully!
-✅ Booking status cron job started (runs every 5 minutes)
-[CRON] Running booking status update at 2025-11-25T13:24:25.717Z
-[CRON] Summary: 0 → in_progress, 0 → past
-[CRON] Running booking status update at 2025-11-25T13:25:00.009Z
-[CRON] Summary: 0 → in_progress, 0 → past

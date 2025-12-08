@@ -2,6 +2,7 @@
 const User = require('../../models/user.model')
 const Booking = require('../../models/booking.model')
 const Payment = require('../../models/payment.model')
+const Service = require('../../models/service.model')
 const response = require('../../utils/response');
 
 const {
@@ -13,6 +14,7 @@ const {
     ERRORS,
     GENERAL_STATUS,
     normalize,
+    ROLES,
 } = require('../../utils')
 const { sendStatusChangeNotification } = require('../../helpers/notification')
 const { removeImage } = require('../../helpers/image');
@@ -278,15 +280,192 @@ const getUserById = async (req, res) => {
         const { decoded, params } = req
         let { id } = params
 
-        let user = await User.findById(id).select('-password').exec()
+        // Use lean() with virtuals to include virtual fields
+        let user = await User.findById(id)
+            .select('-password')
+            .lean({ virtuals: true })
+            .exec()
 
-        return ResponseHandler.success(res, "User Details", user);
+        if (!user) {
+            return ResponseHandler.error(res, "User not found", 404);
+        }
+
+        let role;
+        if (user?.role === ROLES.PROVIDER) {
+            role = 'Provider'
+        } else {
+            role = 'User'
+        }
+
+        // Check if user is a provider and has interview data
+        if (user.role === ROLES.PROVIDER && user.interview) {
+            const interview = user.interview;
+
+            // Check if interview has date and time fields
+            if (interview.date && interview.start_time && interview.end_time && interview.status === 'scheduled') {
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+                // Parse interview date (remove time part for comparison)
+                const interviewDate = new Date(interview.date);
+                const interviewDateOnly = new Date(interviewDate.getFullYear(), interviewDate.getMonth(), interviewDate.getDate());
+
+                // Parse time strings to hours and minutes
+                const [startHour, startMinute] = interview.start_time.split(':').map(Number);
+                const [endHour, endMinute] = interview.end_time.split(':').map(Number);
+
+                // Create Date objects for start and end times
+                const startTime = new Date(interviewDate);
+                startTime.setHours(startHour, startMinute, 0, 0);
+
+                const endTime = new Date(interviewDate);
+                endTime.setHours(endHour, endMinute, 0, 0);
+
+                // Check if today is the interview date
+                const isToday = today.getTime() === interviewDateOnly.getTime();
+
+                // Check if current time is within interview time window
+                const isLive = isToday && now >= startTime && now <= endTime;
+
+                // Add is_live flag to interview object
+                user.interview.is_live = isLive;
+            } else {
+                // If interview doesn't have required fields or not scheduled, set is_live to false
+                if (user.interview) {
+                    user.interview.is_live = false;
+                }
+            }
+        }
+
+        // Create a clean response object with all URLs
+        const response = {
+            ...user,
+            // Ensure URLs are included (they already are from virtuals)
+            image_url: user.image_url || null,
+            resume_url: user.resume_url || null,
+            certifications_with_urls: user.certifications_with_urls || []
+        };
+
+        // If you want to remove the original fields and keep only URLs (optional):
+        // const { picture, resume, certifications, ...rest } = user;
+        // const response = {
+        //     ...rest,
+        //     image_url: user.image_url || null,
+        //     resume_url: user.resume_url || null,
+        //     certifications_with_urls: user.certifications_with_urls || []
+        // };
+
+        return ResponseHandler.success(res, role + " Details", response);
 
     } catch (e) {
         console.log("Error Message :: ", e)
         return ResponseHandler.error(res, e.message, 400);
     }
 }
+
+const getUnassignedServices = async (req, res) => {
+    try {
+        // Get all active services - select only id and name
+        const allServices = await Service.find({ active: true })
+            .select('_id name')
+            .lean();
+
+        // Get all service IDs that are assigned to at least one provider
+        const providers = await User.find({
+            role: ROLES.PROVIDER,
+            provider_services: { $exists: true, $ne: [] }
+        }).select('provider_services');
+
+        // Collect all assigned service IDs
+        const assignedServiceIds = new Set();
+        providers.forEach(provider => {
+            provider.provider_services.forEach(serviceId => {
+                assignedServiceIds.add(serviceId.toString());
+            });
+        });
+
+        // Filter out services that are assigned to any provider
+        const unassignedServices = allServices
+            .filter(service => !assignedServiceIds.has(service._id.toString()))
+            .map(service => ({
+                id: service._id,
+                name: service.name
+            }));
+
+        return ResponseHandler.success(res, "Unassigned Services", unassignedServices);
+
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return ResponseHandler.error(res, e.message, 400);
+    }
+};
+
+const assignServiceToProvider = async (req, res) => {
+    try {
+        const { id } = req.params; // provider ID
+        const { service_id } = req.body;
+
+        // Validate service_id is provided
+        if (!service_id) {
+            throw new Error('Service ID is required');
+        }
+
+        // Validate service_id is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(service_id)) {
+            throw new Error('Invalid Service ID');
+        }
+
+        // Check if service exists and is active
+        const service = await Service.findOne({ _id: service_id, active: true });
+        if (!service) {
+            throw new Error(ERRORS.SERVICE_NOTEXIST);
+        }
+
+        // Find provider
+        const provider = await User.findById(id);
+        if (!provider) {
+            throw new Error('Provider not found');
+        }
+
+        // Check if user is a provider
+        if (provider.role !== ROLES.PROVIDER) {
+            throw new Error('User is not a provider');
+        }
+
+        // Check if service is already assigned to this provider
+        const isAlreadyAssigned = provider.provider_services.some(
+            serviceId => serviceId.toString() === service_id
+        );
+
+        if (isAlreadyAssigned) {
+            throw new Error('Service is already assigned to this provider');
+        }
+
+        // Add service to provider's services
+        provider.provider_services.push(service_id);
+        await provider.save();
+
+        // Populate the provider_services to return full details
+        await provider.populate('provider_services', 'name image description');
+
+        return res.status(200).send({
+            success: true,
+            message: 'Service assigned successfully',
+            data: {
+                provider_id: provider._id,
+                provider_name: `${provider.first_name} ${provider.last_name}`,
+                provider_services: provider.provider_services
+            }
+        });
+
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return res.status(400).send({
+            success: false,
+            message: e.message,
+        });
+    }
+};
 
 const updateUserStatus = async (req, res) => {
     try {
@@ -884,5 +1063,7 @@ module.exports = {
     getAppointmentsByProvider,
     verifyUser,
     scheduleInterview,
-    upgradeAccount
+    upgradeAccount,
+    getUnassignedServices,
+    assignServiceToProvider
 }
