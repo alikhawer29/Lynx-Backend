@@ -194,19 +194,30 @@ const getServiceById = async (req, res) => {
 
 const updateService = (async (req, res) => {
     try {
+        const { body, params, file } = req;
+        const { id } = params;
 
-        const { body, params } = req
-        const { id } = params
+        // Prepare update payload
+        const updatePayload = { ...body };
 
-        let service = await Service.findByIdAndUpdate(id, { $set: body }, { new: true })
+        // If a new image is uploaded, update the image field
+        if (file) {
+            updatePayload.image = normalize(file.path);
+        }
+
+        let service = await Service.findByIdAndUpdate(
+            id,
+            { $set: updatePayload },
+            { new: true }
+        );
 
         return ResponseHandler.success(res, "Service Updated Successfully", service);
 
     } catch (e) {
-        console.log("Error Message :: ", e)
+        console.log("Error Message :: ", e);
         return ResponseHandler.error(res, e.message, 400);
     }
-})
+});
 
 const deleteService = (async (req, res) => {
     try {

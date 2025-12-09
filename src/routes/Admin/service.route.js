@@ -13,7 +13,7 @@ router.get('/:id', OptionalAuthVerifier, serviceController.getServiceById)
 
 router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), serviceController.createService)
 
-router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.updateService)
+router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), serviceController.updateService)
 
 router.delete('/delete/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.deleteService)
 
