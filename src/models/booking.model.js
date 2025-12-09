@@ -60,11 +60,11 @@ const bookingSchema = new mongoose.Schema(
 
         // Contact Details
         contact_details: {
-            first_name: { type: String, required: true },
-            last_name: { type: String, required: true },
+            first_name: { type: String },
+            last_name: { type: String },
             country_code: { type: String },
             phone_number: { type: String },
-            email: { type: String, required: true },
+            email: { type: String },
         },
 
         session_date: { type: Date, required: true },
@@ -123,6 +123,10 @@ const bookingSchema = new mongoose.Schema(
         // Soft delete fields
         deleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
+        visit_type: {
+            type: String,
+            enum: ["provider_visits_user", "user_visits_provider", 'both'],
+        },
     },
     { timestamps: true }
 );

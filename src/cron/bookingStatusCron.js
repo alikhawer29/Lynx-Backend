@@ -57,8 +57,6 @@ const updateBookingStatuses = async () => {
                 const sessionEnd = new Date(sessionDate);
                 sessionEnd.setHours(endHours, endMinutes, 0, 0);
 
-                console.log(`[CRON] Booking ${booking.booking_id}: Start=${sessionStart.toISOString()}, End=${sessionEnd.toISOString()}, Now=${now.toISOString()}, Status=${booking.booking_status}`);
-
                 // Check if session has started
                 if (now >= sessionStart && now < sessionEnd && booking.booking_status === 'upcoming') {
                     booking.booking_status = 'in_progress';

@@ -1,4 +1,5 @@
 // user.controller.js
+const mongoose = require('mongoose')
 const User = require('../../models/user.model')
 const Booking = require('../../models/booking.model')
 const Payment = require('../../models/payment.model')

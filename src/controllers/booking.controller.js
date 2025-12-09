@@ -22,6 +22,7 @@ const {
     sendBookingCancelledNotifications,
     sendRescheduleResponseNotifications,
 } = require('../helpers/bookingNotification');
+const ResponseHandler = require('../utils/response');
 
 dotenv.config();
 
@@ -188,12 +189,19 @@ const getBookings = async (req, res) => {
         const total = await Booking.countDocuments(filter);
 
 
-        return res.json(response.success("Booking Listing", bookings));
+        return res.status(200).send({
+            success: true,
+            total,
+            data: bookings,
+        });
 
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        return res.json(response.error(e.message, 400, "Booking Listing"));
+        return res.status(400).send({
+            success: false,
+            message: e.message,
+        });
     }
 };
 
@@ -210,7 +218,7 @@ const getBookingById = async (req, res) => {
                 { path: "user_id", select: "first_name last_name email picture certifications" },
                 { path: "service_id", select: "name price image" },
                 { path: "category_id", select: "name" },
-                { path: "provider_id", select: "first_name last_name email picture certifications dialing_code phone" },
+                { path: "provider_id", select: "first_name last_name email picture certifications dialing_code phone provider_lat provider_lng provider_address" },
                 { path: "slot_id", select: "start_time end_time" },
             ])
             .lean({ virtuals: true });
