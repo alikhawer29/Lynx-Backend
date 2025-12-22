@@ -6,18 +6,17 @@ const path = require('path')
 dotenv.config();
 
 const transport = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,          // ✅ CHANGE
-    secure: false,      // ✅ CHANGE (must be false for 587)
+    host: 'smtppro.zoho.com',
+    port: 587,
+    secure: false, // MUST be false for 587
     auth: {
-        user: process.env.EMAIL_FORMAIL,
-        pass: process.env.EMAILPASSWORD_FORMAIL
+        user: process.env.MAIL_USERNAME,
+        pass: process.env.MAIL_PASSWORD
     },
     tls: {
         rejectUnauthorized: true
     }
 });
-
 const sendMail = (async (from = "noreply@lynxconsultancy.com", to, subject, text, template, body) => {
 
     try {
