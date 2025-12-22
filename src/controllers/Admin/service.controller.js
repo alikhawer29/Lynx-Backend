@@ -30,18 +30,11 @@ const createService = (async (req, res) => {
 
         await service.save()
 
-        return res.status(200).send({
-            success: true,
-            message: "Service Successfully Saved",
-            data: service
-        })
+        return ResponseHandler.success(res, "Service Successfully Saved", service)
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 

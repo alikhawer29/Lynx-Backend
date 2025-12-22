@@ -449,22 +449,15 @@ const assignServiceToProvider = async (req, res) => {
         // Populate the provider_services to return full details
         await provider.populate('provider_services', 'name image description');
 
-        return res.status(200).send({
-            success: true,
-            message: 'Service assigned successfully',
-            data: {
-                provider_id: provider._id,
-                provider_name: `${provider.first_name} ${provider.last_name}`,
-                provider_services: provider.provider_services
-            }
+        return ResponseHandler.success(res, "Service assigned successfully", {
+            provider_id: provider._id,
+            provider_name: `${provider.first_name} ${provider.last_name}`,
+            provider_services: provider.provider_services
         });
 
     } catch (e) {
         console.log('Error Message :: ', e);
-        return res.status(400).send({
-            success: false,
-            message: e.message,
-        });
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -476,10 +469,7 @@ const updateUserStatus = async (req, res) => {
         const user = await User.findById(id)
 
         if (!user) {
-            return res.status(404).send({
-                success: false,
-                message: "User not found"
-            })
+            return ResponseHandler.error(res, "User not found", 404)
         }
 
         const previousStatus = user.active
@@ -764,17 +754,11 @@ const completeProfile = (async (req, res) => {
         user.details = details._id
         await user.save()
 
-        return res.status(200).send({
-            success: true,
-            data: user
-        })
+        return ResponseHandler.success(res, "Profile completed successfully", user)
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -930,18 +914,11 @@ const handleStatus = (async (req, res) => {
             }
         }
 
-        return res.status(200).send({
-            success: true,
-            message: "User Successfully Updated",
-            data: user
-        })
+        return ResponseHandler.success(res, "User Successfully Updated", user)
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -952,17 +929,11 @@ const deleteUser = (async (req, res) => {
 
         await User.findByIdAndDelete(id)
 
-        return res.status(200).send({
-            success: true,
-            message: "User Successfully Deleted"
-        })
+        return ResponseHandler.success(res, "User Successfully Deleted")
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -970,17 +941,11 @@ const deleteUser = (async (req, res) => {
 const handleFavoriteServices = (async (req, res) => {
     try {
 
-        return res.status(200).send({
-            success: true,
-            message: "Service Removed From Favorites"
-        })
+        return ResponseHandler.success(res, "Service Removed From Favorites")
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -1007,17 +972,11 @@ const getFavoriteServices = (async (req, res) => {
             services = services.filter(item => item?.name?.toLowerCase().includes(name))
         }
 
-        return res.status(200).send({
-            success: true,
-            data: services || []
-        })
+        return ResponseHandler.success(res, "Favorite Services Retrieved Successfully", services || [])
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -1028,17 +987,11 @@ const logout = (async (req, res) => {
 
         await User.findByIdAndUpdate(id, { $set: { device_ids: [] } })
 
-        return res.status(200).send({
-            success: true,
-            message: "Logged Out"
-        })
+        return ResponseHandler.success(res, "Logged Out")
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return res.status(400).send({
-            success: false,
-            message: e.message
-        })
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 

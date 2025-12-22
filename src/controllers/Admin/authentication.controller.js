@@ -68,8 +68,7 @@ const login = async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e);
-        const errorResponse = response.error(e.message, 400);
-        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
+        return ResponseHandler.error(res, e.message, 400);
     }
 };
 
@@ -113,8 +112,7 @@ const forgetPassword = (async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -152,8 +150,7 @@ const verifyOtp = (async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
@@ -179,8 +176,7 @@ const resetPassword = (async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        const errorResponse = response.error(e.message, 400);
-        return ResponseHandler.error(res, errorResponse.message, errorResponse.statusCode);
+        return ResponseHandler.error(res, e.message, 400);
     }
 })
 
