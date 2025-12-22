@@ -15,7 +15,7 @@ const transport = nodemailer.createTransport({
     }
 });
 
-const sendMail = (async (from = "noreply@spirituality.com", to, subject, text, template, body) => {
+const sendMail = (async (from = "noreply@lynxconsultancy.com", to, subject, text, template, body) => {
 
     try {
 
