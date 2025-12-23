@@ -15,8 +15,17 @@ router.get('/profile', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userControll
 
 router.get('/home', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getHome)
 
+//UPGRADE REQUESTS - Move to top to prevent route conflicts
+router.get('/upgrade-requests', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUpgradeRequests)
+
+router.get('/upgrade-requests/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUpgradeRequestDetails)
+
 //USERS
 router.get('/users', AuthVerifier, userController.getUser)
+
+router.get('/users/upgrade-requests', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUpgradeRequests)
+
+router.get('/users/upgrade-requests/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUpgradeRequestDetails)
 
 router.get('/users/:id', AuthVerifier, userController.getUserById)
 
@@ -36,8 +45,6 @@ router.patch('/provider/upgrade-account/:id', AuthVerifier, RestrictAccess([ROLE
 router.get('/unassigned-services', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getUnassignedServices)
 
 router.post('/assign-service/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.assignServiceToProvider)
-
-
 
 router.patch('/handle-status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.handleStatus)
 

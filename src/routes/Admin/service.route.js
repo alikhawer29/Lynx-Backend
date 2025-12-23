@@ -9,6 +9,8 @@ const upload = require('../../middlewares/upload.middleware')
 
 router.get('/', OptionalAuthVerifier, serviceController.getService)
 
+router.get('/appointments', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.getServiceAppointments)
+
 router.get('/:id', OptionalAuthVerifier, serviceController.getServiceById)
 
 router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), serviceController.createService)
@@ -16,5 +18,7 @@ router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("serv
 router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), upload("service").single("image"), serviceController.updateService)
 
 router.delete('/delete/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.deleteService)
+
+router.patch('/status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.toggleServiceStatus)
 
 module.exports = router

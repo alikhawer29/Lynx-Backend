@@ -236,6 +236,7 @@ const getUser = async (req, res) => {
         // Add interview field if new_requests is provided
         if (new_requests == 'true') {
             projection.interview = 1;
+            projection.reject_reason = 1;
         }
 
         // Fetch data
@@ -246,11 +247,28 @@ const getUser = async (req, res) => {
             .lean();
 
         // If new_requests is provided, ensure interview field is present (even if null)
-        if (new_requests == 'true') {
-            users = users.map(user => ({
-                ...user,
-                interview: user.interview || 'pending'
-            }));
+        if (new_requests === 'true') {
+            users = users.map(user => {
+                let status = 'pending'; // default status
+
+                // Check for reject_reason first (highest priority)
+                if (user.reject_reason) {
+                    status = 'rejected';
+                } else if (user.interview && user.interview.status === 'scheduled') {
+                    status = 'scheduled';
+                } else {
+                    status = 'pending';
+                }
+
+                return {
+                    ...user,
+                    status: status,
+                    interview: {
+                        ...user.interview,
+                        status: user.interview?.status ?? 'pending'
+                    }
+                };
+            });
         }
 
         let total = await User.countDocuments(filter);
@@ -299,11 +317,24 @@ const getUserById = async (req, res) => {
         }
 
         // Check if user is a provider and has interview data
-        if (user.role === ROLES.PROVIDER && user.interview) {
-            const interview = user.interview;
+        if (user.role === ROLES.PROVIDER) {
+            // If interview exists but status is null, set it to 'pending'
+            if (user.interview && user.interview.status === null) {
+                user.interview.status = 'pending';
+            }
 
-            // Check if interview has date and time fields
-            if (interview.date && interview.start_time && interview.end_time && interview.status === 'scheduled') {
+            // Add status field based on interview status and reject_reason
+            if (user.reject_reason) {
+                user.status = 'rejected';
+            } else if (user.interview && user.interview.status === 'scheduled') {
+                user.status = 'scheduled';
+            } else {
+                user.status = 'pending';
+            }
+
+            // Check if interview has date and time fields for live status calculation
+            if (user.interview && user.interview.date && user.interview.start_time && user.interview.end_time && user.interview.status === 'scheduled') {
+                const interview = user.interview;
                 const now = new Date();
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -999,25 +1030,145 @@ const logout = (async (req, res) => {
 
 
 
+const getUpgradeRequests = async (req, res) => {
+    try {
+        let { page = 1, per_page = 10, search, from, to, sortBy, status } = req.query;
+
+        page = parseInt(page);
+        per_page = parseInt(per_page);
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        let filter = {
+            role: ROLES.PROVIDER,
+            booking_category: 'premium' // Filter for providers who have requested premium upgrade
+        };
+        let sort = { createdAt: -1 };
+
+        // Search filter
+        if (search) {
+            filter.$or = [
+                { first_name: getSearchQuery(search) },
+                { last_name: getSearchQuery(search) },
+                { email: getSearchQuery(search) }
+            ];
+        }
+
+        // Date range filter
+        if (from || to) {
+            filter.updatedAt = getDateRangeQuery(from, to);
+        }
+
+        // Sort options
+        if (sortBy) {
+            sort = { [sortBy]: -1 };
+        }
+
+        // Build aggregation pipeline
+        let pipeline = [
+            { $match: filter },
+            {
+                $project: {
+                    first_name: 1,
+                    last_name: 1,
+                    email: 1,
+                    phone: 1,
+                    country_code: 1,
+                    picture: 1,
+                    booking_category: 1,
+                    upgrade_reject_reason: 1,
+                    is_verified: 1,
+                    active: 1,
+                    createdAt: 1,
+                    updatedAt: 1,
+                    image_url: {
+                        $cond: {
+                            if: { $regexMatch: { input: "$picture", regex: /^http/ } },
+                            then: "$picture",
+                            else: { $concat: [process.env.BASE_URL, "$picture"] }
+                        }
+                    }
+                }
+            },
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const upgradeRequests = await User.aggregate(pipeline);
+        const total = await User.countDocuments(filter);
+
+        // Use paginationResponse helper
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
+        const paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: upgradeRequests
+        });
+
+        return ResponseHandler.success(res, "Upgrade requests retrieved successfully.", paginated);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+};
+
+const getUpgradeRequestDetails = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const user = await User.findOne({
+            _id: id,
+            role: ROLES.PROVIDER,
+            booking_category: 'premium'
+        })
+            .select('-password')
+            .lean({ virtuals: true });
+
+        if (!user) {
+            return ResponseHandler.error(res, "Upgrade request not found", 404);
+        }
+
+        // Create a clean response object with all URLs
+        const response = {
+            ...user,
+            image_url: user.image_url || null,
+            resume_url: user.resume_url || null,
+            certifications_with_urls: user.certifications_with_urls || []
+        };
+
+        return ResponseHandler.success(res, "Upgrade request details retrieved successfully.", response);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+};
+
 module.exports = {
-    completeProfile,
+    getMyProfile,
+    updateUser,
+    changePassword,
+    getHome,
     getUser,
     getUserById,
-    updateUser,
-    deleteUser,
-    changePassword,
-    getMyProfile,
-    getHome,
-    handleFavoriteServices,
-    getFavoriteServices,
-    handleStatus,
-    logout,
+    getUnassignedServices,
+    assignServiceToProvider,
     updateUserStatus,
     getAppointmentsByUser,
     getAppointmentsByProvider,
-    verifyUser,
     scheduleInterview,
+    completeProfile,
+    verifyUser,
     upgradeAccount,
-    getUnassignedServices,
-    assignServiceToProvider
+    handleStatus,
+    deleteUser,
+    handleFavoriteServices,
+    getFavoriteServices,
+    logout,
+    getUpgradeRequests,
+    getUpgradeRequestDetails,
 }

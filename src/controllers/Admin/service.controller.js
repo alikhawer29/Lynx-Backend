@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
 const Service = require('../../models/service.model')
+const Booking = require('../../models/booking.model')
 const Review = require('../../models/user.model')
 const User = require('../../models/user.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, normalize, paginateResponse } = require('../../utils')
@@ -260,6 +261,167 @@ const handleFavorite = (async (req, res) => {
 })
 
 
+const toggleServiceStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const service = await Service.findById(id);
+
+        if (!service) {
+            throw new Error(ERRORS.SERVICE_NOTEXIST);
+        }
+
+        service.active = service.active === true ? false : true;
+        await service.save();
+
+        return ResponseHandler.success(res, `Service status updated to ${service.active}`, service);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+}
+
+const getServiceAppointments = async (req, res) => {
+    try {
+        let { query } = req;
+        let {
+            page = 1,
+            per_page = 10,
+            search,
+            from,
+            to,
+            sortBy,
+            categories,
+            service_id
+        } = query;
+
+        page = parseInt(page);
+        per_page = parseInt(per_page);
+
+        let { limit, skip } = paginationHandler(page, per_page);
+
+        let filter = {};
+        let sort = { createdAt: -1 };
+
+        // Filter by specific service
+        if (service_id) {
+            filter.service_id = new mongoose.Types.ObjectId(service_id);
+        } else {
+            return ResponseHandler.error(res, "Service ID is required", 400);
+        }
+
+        // Search by booking_id or user details
+        if (search) {
+            filter.$or = [
+                { booking_id: getSearchQuery(search) },
+                { 'contact_details.first_name': getSearchQuery(search) },
+                { 'contact_details.last_name': getSearchQuery(search) },
+                { 'contact_details.email': getSearchQuery(search) }
+            ];
+        }
+
+        // Date range filter
+        if (from || to) {
+            filter.session_date = getDateRangeQuery(from, to);
+        }
+
+        // Sort options
+        if (sortBy) {
+            sort = { [sortBy]: 1 };
+        }
+
+        // Build aggregation pipeline
+        let pipeline = [
+            { $match: filter },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "user"
+                }
+            },
+            { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "provider_id",
+                    foreignField: "_id",
+                    as: "provider"
+                }
+            },
+            { $unwind: { path: "$provider", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "services",
+                    localField: "service_id",
+                    foreignField: "_id",
+                    as: "service"
+                }
+            },
+            { $unwind: { path: "$service", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "category_id",
+                    foreignField: "_id",
+                    as: "category"
+                }
+            },
+            { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    booking_id: 1,
+                    user_id: 1,
+                    service_id: 1,
+                    category_id: 1,
+                    provider_id: 1,
+                    price: 1,
+                    session_date: 1,
+                    session_time: 1,
+                    status: 1,
+                    booking_status: 1,
+                    payment_status: 1,
+                    contact_details: 1,
+                    address: 1,
+                    price_type: 1,
+                    'user.first_name': 1,
+                    'user.last_name': 1,
+                    'user.email': 1,
+                    'provider.first_name': 1,
+                    'provider.last_name': 1,
+                    'service.name': 1,
+                    'category.name': 1,
+                    createdAt: 1
+                }
+            },
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const appointments = await Booking.aggregate(pipeline);
+        const total = await Booking.countDocuments(filter);
+
+        // Use paginationResponse helper
+        const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
+        const paginated = paginateResponse({
+            page,
+            per_page,
+            total,
+            baseUrl,
+            data: appointments
+        });
+
+        return ResponseHandler.success(res, "Service appointments retrieved successfully.", paginated);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+}
+
 module.exports = {
     createService,
     getService,
@@ -267,4 +429,6 @@ module.exports = {
     updateService,
     deleteService,
     handleFavorite,
+    toggleServiceStatus,
+    getServiceAppointments,
 }
