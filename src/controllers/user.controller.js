@@ -3,6 +3,8 @@ const Booking = require('../models/booking.model')
 const Payment = require('../models/payment.model')
 const Conversation = require('../models/conversation.model')
 const response = require('../utils/response');
+const fs = require('fs');
+const path = require('path');
 
 const {
     paginateResponse,
@@ -361,53 +363,113 @@ const updateUserStatus = async (req, res) => {
     }
 }
 
-const updateUser = (async (req, res) => {
+
+
+const updateUser = async (req, res) => {
     try {
+        let { decoded, body, files } = req; // files instead of file
 
-        let { decoded, body, file } = req
+        // Validate input fields
+        if (!objectValidator(body)) throw new Error(ERRORS.NULL_FIELD);
 
-        let validate = objectValidator(body)
-
-        if (!validate) {
-            throw new Error(ERRORS.NULL_FIELD)
-        }
-
+        // Prevent role/email/password edits
         if (body?.role || body?.email || body?.password) {
-            throw new Error("Email or Password is not allowed to be edit")
+            throw new Error("Email, password, or role cannot be edited");
         }
 
-        let payload = { ...body }
+        let payload = { ...body };
 
-        if (file) {
-            let user = await User.findById(decoded.id)
-            if (!user?.picture?.includes("dummy")) {
-                removeImage(user.picture)
+        // Handle profile picture update
+        if (files) {
+            const profileFile = files.find(f => f.fieldname === "image");
+            if (profileFile) {
+                let user = await User.findById(decoded.id);
+                if (user?.picture && !user.picture.includes("dummy")) {
+                    fs.unlinkSync(user.picture);
+                }
+                payload.picture = profileFile.path.replace(/\\/g, "/");
             }
-            payload.picture = normalize(file.path)
         }
 
-        let user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true })
+        const currentUser = await User.findById(decoded.id);
 
-        // let active_subscription = await getCurrentSubscription(user?._id)
-        // user.active_subscription = active_subscription
+        // Handle provider certifications
+        if (currentUser.role === "provider" && body.certifications) {
+            let certifications = [];
 
-        // let conversation = await Conversation.findOne({ participants: { $in: [user._id] } }).select("_id")
-        // user.conversation = conversation._id
+            // Parse certifications
+            let parsedCerts;
+            try {
+                parsedCerts =
+                    typeof body.certifications === "string"
+                        ? JSON.parse(body.certifications)
+                        : body.certifications;
+
+                if (!Array.isArray(parsedCerts)) throw new Error();
+            } catch {
+                throw new Error("Invalid certifications format");
+            }
+
+            // Handle files for certifications
+            const certFiles = files
+                ? files.filter(
+                    f =>
+                        f.fieldname.startsWith("certifications[") &&
+                        f.fieldname.includes("certificate_picture")
+                )
+                : [];
+
+            parsedCerts.forEach((cert, index) => {
+                const certFile = certFiles.find(f =>
+                    f.fieldname.includes(`[${index}]`)
+                );
+
+                const certData = {
+                    institution_name: cert.institution_name,
+                    certificate_title: cert.certificate_title,
+                    certificate_picture:
+                        cert.certificate_picture || null,
+                };
+
+                if (certFile) {
+                    // Remove old file if exists
+                    const oldCert = currentUser.certifications[index];
+                    if (oldCert?.certificate_picture && fs.existsSync(oldCert.certificate_picture)) {
+                        fs.unlinkSync(oldCert.certificate_picture);
+                    }
+
+                    // Rename new file
+                    const ext = path.extname(certFile.originalname);
+                    const newFileName = `certifications_${index}_certificate_picture-${Date.now()}${ext}`;
+                    const newPath = path.join("uploads/user", newFileName);
+
+                    fs.renameSync(certFile.path, newPath);
+                    certData.certificate_picture = newPath.replace(/\\/g, "/");
+                }
+
+                certifications.push(certData);
+            });
+
+            payload.certifications = certifications;
+        }
+
+        // Update user in DB
+        const user = await User.findByIdAndUpdate(decoded.id, { $set: payload }, { new: true }).lean({ virtuals: true });
 
         return res.status(200).send({
             success: true,
             message: "User Successfully Updated",
-            data: user
-        })
-
+            data: user,
+        });
     } catch (e) {
-        console.log("Error Message :: ", e)
+        console.error("Error Message :: ", e);
         return res.status(400).send({
             success: false,
-            message: e.message
-        })
+            message: e.message,
+        });
     }
-})
+};
+
 
 // Admin - User Appointments
 const getAppointmentsByUser = async (req, res) => {
@@ -936,15 +998,132 @@ const scheduleInterview = async (req, res) => {
         }));
 
     } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.json(response.error(e.message, 400, "Schedule Interview"));
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
     }
+};
 
+const upgradeAccountRequest = async (req, res) => {
+    try {
+        const { decoded, body, files } = req;
+        const { no_of_completed_appointments, years_of_exp, no_of_languages } = body;
 
+        // Validate user is provider
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            });
+        }
 
+        if (user.role !== 'provider') {
+            return res.status(403).send({
+                success: false,
+                message: "Only providers can request account upgrade"
+            });
+        }
 
-}
+        console.log(user.upgrade_request, 'user.upgrade_request')
 
+        // Check if upgrade request already exists
+        if (user.upgrade_request && 
+            typeof user.upgrade_request === 'object' && 
+            user.upgrade_request.status === 'pending') {
+            return res.status(400).send({
+                success: false,
+                message: "Upgrade request already submitted"
+            });
+        }
+
+        // Validate required fields
+        if (!no_of_completed_appointments || !years_of_exp || !no_of_languages) {
+            return res.status(400).send({
+                success: false,
+                message: "All fields are required: no_of_completed_appointments, years_of_exp, no_of_languages"
+            });
+        }
+
+        console.log('Request files:', files);
+        console.log('Request body:', body);
+
+        // Handle certificate file
+        let certificate_path = null;
+        const certificateFile = files && files.find(file => file.fieldname === 'certificate');
+        if (certificateFile) {
+            console.log('Processing certificate file:', certificateFile);
+            const ext = path.extname(certificateFile.originalname);
+            const newFileName = `upgrade_certificate_${decoded.id}-${Date.now()}${ext}`;
+            const newPath = path.join("uploads/upgrade_requests", newFileName);
+            
+            // Create directory if it doesn't exist
+            const dir = path.dirname(newPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            
+            fs.renameSync(certificateFile.path, newPath);
+            certificate_path = newPath.replace(/\\/g, "/");
+            console.log('Certificate saved to:', certificate_path);
+        } else {
+            console.log('No certificate file found');
+        }
+
+        // Handle license file
+        let license_path = null;
+        const licenseFile = files && files.find(file => file.fieldname === 'license');
+        if (licenseFile) {
+            console.log('Processing license file:', licenseFile);
+            const ext = path.extname(licenseFile.originalname);
+            const newFileName = `upgrade_license_${decoded.id}-${Date.now()}${ext}`;
+            const newPath = path.join("uploads/upgrade_requests", newFileName);
+            
+            // Create directory if it doesn't exist
+            const dir = path.dirname(newPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            
+            fs.renameSync(licenseFile.path, newPath);
+            license_path = newPath.replace(/\\/g, "/");
+            console.log('License saved to:', license_path);
+        } else {
+            console.log('No license file found');
+        }
+
+        // Create upgrade request object
+        const upgradeRequest = {
+            no_of_completed_appointments: parseInt(no_of_completed_appointments),
+            years_of_exp: parseInt(years_of_exp),
+            no_of_languages: parseInt(no_of_languages),
+            certificate: certificate_path,
+            license: license_path,
+            requested_at: new Date(),
+            status: 'pending'
+        };
+
+        // Update user with upgrade request
+        await User.findByIdAndUpdate(decoded.id, {
+            $set: { upgrade_request: upgradeRequest }
+        });
+
+        return res.status(200).send({
+            success: true,
+            message: "Upgrade request submitted successfully",
+            data: upgradeRequest
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
 
 const upgradeAccount = async (req, res) => {
     try {
@@ -1002,6 +1181,7 @@ const upgradeAccount = async (req, res) => {
         });
     }
 };
+
 module.exports = {
     completeProfile,
     getUser,
@@ -1020,5 +1200,6 @@ module.exports = {
     getAppointmentsByProvider,
     verifyUser,
     scheduleInterview,
+    upgradeAccountRequest,
     upgradeAccount
 }

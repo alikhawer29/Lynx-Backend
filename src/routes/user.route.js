@@ -24,9 +24,13 @@ router.patch('/schedule-interview/:id', AuthVerifier, RestrictAccess([ROLES.ADMI
 
 //make an api in which admin approve or reject service provider request to upgrade their account to premium
 
+router.post('/upgrade-account-request', AuthVerifier, upload("user").any(), userController.upgradeAccountRequest)
+
 router.patch('/upgrade-account/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.upgradeAccount)
 
-router.put('/update', AuthVerifier, upload("user").single("image"), userController.updateUser)
+router.put('/update', AuthVerifier, upload("user").any(), userController.updateUser)
+// router.post('/signup', upload("user").any(), authController.signup)
+
 
 router.delete('/delete', AuthVerifier, userController.deleteUser)
 

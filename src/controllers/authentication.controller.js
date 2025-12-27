@@ -8,6 +8,9 @@ const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = r
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendMail } = require("../helpers/email")
 
+const fs = require("fs");
+const path = require("path");
+
 const socialLogin = (async (req, res) => {
     try {
 
@@ -157,7 +160,15 @@ const login = (async (req, res) => {
         let currentUser = { ...userExist._doc }
 
         delete currentUser.password
-        currentUser.image_url = userExist.image_url
+
+        // Add virtual fields for providers
+        if (userExist.role === ROLES.PROVIDER) {
+            currentUser.image_url = userExist.image_url
+            currentUser.resume_url = userExist.resume_url
+            currentUser.certifications_with_urls = userExist.certifications_with_urls
+        } else {
+            currentUser.image_url = userExist.image_url
+        }
 
         let active_subscription = await getCurrentSubscription(currentUser._id)
         currentUser.active_subscription = active_subscription
@@ -183,187 +194,130 @@ const login = (async (req, res) => {
     }
 })
 
-const signup = (async (req, res) => {
+const signup = async (req, res) => {
     try {
+        const { body, files } = req;
+        const { email, role } = body;
 
-        let { body, files } = req
-        let { email, role } = body
-
-        let validate = objectValidator(body)
-
-        if (!validate) {
-            throw new Error(ERRORS.NULL_FIELD)
+        if (!objectValidator(body)) {
+            throw new Error(ERRORS.NULL_FIELD);
         }
 
-        let userExist = await User.findOne({ email }, { _id: 1 })
-
+        const userExist = await User.findOne({ email }, { _id: 1 });
         if (userExist) {
-            throw new Error(ERRORS.USER_EXIST)
+            throw new Error(ERRORS.USER_EXIST);
         }
 
-        let payload = { ...body }
+        const payload = { ...body };
 
-        // Set default role to USER if not provided
-        if (!role) {
-            payload.role = ROLES.USER
-        }
+        // Default role
+        payload.role = role || ROLES.USER;
 
-        // Convert files array to object for easier access (when using .any())
-        let filesMap = {}
-        if (files && Array.isArray(files)) {
+        // ===============================
+        // FILE MAP (IMPORTANT FIX)
+        // ===============================
+        const filesMap = {};
+        if (Array.isArray(files)) {
             files.forEach(file => {
-                filesMap[file.fieldname] = file
-            })
+                filesMap[file.fieldname] = file;
+            });
         }
 
-        // Handle profile picture upload
-        if (filesMap['image']) {
-            payload.picture = normalize(filesMap['image'].path)
+        // ===============================
+        // PROFILE IMAGE
+        // ===============================
+        if (filesMap.image) {
+            payload.picture = filesMap.image.path.replace(/\\/g, '/');
         }
 
-        // Handle provider-specific fields
-        if (role === ROLES.PROVIDER) {
+        // ===============================
+        // PROVIDER LOGIC
+        // ===============================
+        if (payload.role === ROLES.PROVIDER) {
 
-            // Validate service_delivery_mode
-            // const { provider_lat, provider_lng, provider_address } = body;
-
-
-            // // If provider_location, validate location fields
-            // if (!provider_lat || !provider_lng || !provider_address) {
-            //     throw new Error("provider_lat, provider_lng, and provider_address are required when service_delivery_mode is 'provider_location'");
-            // }
-
-            // // Validate latitude and longitude
-            // const lat = parseFloat(provider_lat);
-            // const lng = parseFloat(provider_lng);
-
-            // if (isNaN(lat) || lat < -90 || lat > 90) {
-            //     throw new Error("provider_lat must be a valid latitude between -90 and 90");
-            // }
-
-            // if (isNaN(lng) || lng < -180 || lng > 180) {
-            //     throw new Error("provider_lng must be a valid longitude between -180 and 180");
-            // }
-
-            // payload.provider_lat = lat;
-            // payload.provider_lng = lng;
-            // payload.provider_address = provider_address;
-
-
-            // Handle resume upload
-            if (filesMap['resume']) {
-                // Validate file type (PDF, DOC, DOCX)
-                const allowedMimeTypes = [
-                    'application/pdf',
-                    'application/msword',
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                ];
-
-                if (!allowedMimeTypes.includes(filesMap['resume'].mimetype)) {
-                    throw new Error("Resume must be a PDF, DOC, or DOCX file");
-                }
-
-                // Validate file size (max 5MB)
-                const maxSize = 5 * 1024 * 1024; // 5MB
-                if (filesMap['resume'].size > maxSize) {
-                    throw new Error("Resume file size must be less than 5MB");
-                }
-
-                const resumePath = normalize(filesMap['resume'].path);
-                payload.resume = resumePath;
+            // Resume
+            if (filesMap.resume) {
+                payload.resume = filesMap.resume.path.replace(/\\/g, '/');
             }
 
-            // Build certifications array from form fields
-            let certifications = []
+            // ===============================
+            // CERTIFICATIONS
+            // ===============================
+            let certifications = [];
 
-            // Method 1: Try to extract from array notation
-            let certIndex = 0
-            while (body[`certifications[${certIndex}][institution_name]`]) {
-                let cert = {
-                    institution_name: body[`certifications[${certIndex}][institution_name]`],
-                    certificate_title: body[`certifications[${certIndex}][certificate_title]`],
-                    certificate_picture: null
-                }
-
-                // Check if there's a corresponding file upload
-                const certPictureField = `certifications[${certIndex}][certificate_picture]`
-                if (filesMap[certPictureField]) {
-                    cert.certificate_picture = normalize(filesMap[certPictureField].path)
-                }
-
-                certifications.push(cert)
-                certIndex++
-            }
-
-            // Method 2: If no certifications found, try to parse from JSON string
-            if (certifications.length === 0 && body.certifications) {
+            // Parse certifications from JSON string
+            let parsedCertifications = [];
+            if (body.certifications) {
                 try {
-                    let parsedCerts = typeof body.certifications === 'string'
+                    parsedCertifications = typeof body.certifications === 'string'
                         ? JSON.parse(body.certifications)
-                        : body.certifications
-
-                    if (Array.isArray(parsedCerts)) {
-                        certifications = parsedCerts.map((cert, index) => {
-                            let certData = {
-                                institution_name: cert.institution_name,
-                                certificate_title: cert.certificate_title,
-                                certificate_picture: null
-                            }
-
-                            // Try to find matching file
-                            if (filesMap[`certificates[${index}]`]) {
-                                certData.certificate_picture = normalize(filesMap[`certificates[${index}]`].path)
-                            } else if (filesMap.certificates && filesMap.certificates[index]) {
-                                certData.certificate_picture = normalize(filesMap.certificates[index].path)
-                            }
-
-                            return certData
-                        })
-                    }
+                        : body.certifications;
                 } catch (e) {
-                    console.log('Error parsing certifications JSON:', e)
+                    console.error('Error parsing certifications JSON:', e);
                 }
             }
 
-            if (certifications.length === 0) {
-                throw new Error("Service providers must provide at least one certification")
-            }
+            // Find all certification files
+            const certFiles = files.filter(file =>
+                file.fieldname.startsWith("certifications[") &&
+                file.fieldname.includes("certificate_picture")
+            );
 
-            payload.certifications = certifications
+            // Match files with parsed certification data
+            parsedCertifications.forEach((cert, index) => {
+                const certFile = certFiles.find(file =>
+                    file.fieldname.includes(`[${index}]`)
+                );
 
-            if (role === ROLES.PROVIDER) {
-                payload.is_verified = false; // Providers need admin approval
-                payload.active = false; // Admin can activate later
-            }
+                if (certFile) {
+                    // Rename file
+                    const ext = path.extname(certFile.originalname);
+                    const newFileName = `certifications_${index}_certificate_picture-${Date.now()}${ext}`;
+                    const newPath = path.join("uploads/user", newFileName);
 
-            // Remove the individual certification fields from payload
-            Object.keys(payload).forEach(key => {
-                if (key.startsWith('certifications[')) {
-                    delete payload[key]
+                    fs.renameSync(certFile.path, newPath);
+
+                    certifications.push({
+                        institution_name: cert.institution_name,
+                        certificate_title: cert.certificate_title,
+                        certificate_picture: newPath.replace(/\\/g, "/")
+                    });
                 }
-            })
+            });
+
+            if (!certifications.length) {
+                throw new Error("Service providers must upload at least one certification");
+            }
+
+            payload.certifications = certifications;
+
+            payload.is_verified = false;
+            payload.active = false;
         }
 
-        let user = new User(payload)
-        await user.save()
+        // ===============================
+        // SAVE USER
+        // ===============================
+        const user = new User(payload);
+        await user.save();
 
-        const message = role === ROLES.PROVIDER
-            ? "Service Provider Successfully Registered. Your account will be verified by admin."
-            : "User Successfully Registered"
-
-        return res.status(200).send({
+        return res.status(200).json({
             success: true,
-            message
-        })
+            message:
+                payload.role === ROLES.PROVIDER
+                    ? "Service Provider registered successfully. Awaiting admin approval."
+                    : "User registered successfully"
+        });
 
-    } catch (e) {
-        console.log("Error Message :: ", e)
-        return res.status(400).send({
+    } catch (error) {
+        console.error("Signup Error:", error);
+        return res.status(400).json({
             success: false,
-            message: e.message
-        })
+            message: error.message
+        });
     }
-})
+};
+
 
 const forgetPassword = (async (req, res) => {
     try {

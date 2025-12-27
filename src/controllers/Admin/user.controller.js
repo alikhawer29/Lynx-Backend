@@ -893,7 +893,8 @@ const upgradeAccount = async (req, res) => {
 
         // Update user's account approval status
         user.booking_category = is_approved ? 'premium' : 'normal';
-        user.upgrade_reject_reason = reject_reason || null;
+        user.upgrade_request.reject_reason = reject_reason || null;
+        user.upgrade_request.status = is_approved ? 'approved' : 'rejected';
         await user.save();
 
         const message = is_approved
@@ -1041,7 +1042,8 @@ const getUpgradeRequests = async (req, res) => {
 
         let filter = {
             role: ROLES.PROVIDER,
-            booking_category: 'premium' // Filter for providers who have requested premium upgrade
+            upgrade_request: { $exists: true, $ne: null },
+            "upgrade_request.status": { $ne: "approved" }
         };
         let sort = { createdAt: -1 };
 
@@ -1071,23 +1073,8 @@ const getUpgradeRequests = async (req, res) => {
                 $project: {
                     first_name: 1,
                     last_name: 1,
-                    email: 1,
-                    phone: 1,
-                    country_code: 1,
-                    picture: 1,
-                    booking_category: 1,
-                    upgrade_reject_reason: 1,
-                    is_verified: 1,
-                    active: 1,
                     createdAt: 1,
-                    updatedAt: 1,
-                    image_url: {
-                        $cond: {
-                            if: { $regexMatch: { input: "$picture", regex: /^http/ } },
-                            then: "$picture",
-                            else: { $concat: [process.env.BASE_URL, "$picture"] }
-                        }
-                    }
+                    status: "$upgrade_request.status", // Correctly reference the field
                 }
             },
             { $sort: sort },
@@ -1123,7 +1110,8 @@ const getUpgradeRequestDetails = async (req, res) => {
         const user = await User.findOne({
             _id: id,
             role: ROLES.PROVIDER,
-            booking_category: 'premium'
+            upgrade_request: { $exists: true, $ne: null },
+            "upgrade_request.status": { $ne: "approved" }
         })
             .select('-password')
             .lean({ virtuals: true });

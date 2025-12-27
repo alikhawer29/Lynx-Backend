@@ -132,6 +132,23 @@ const userSchema = mongoose.Schema({
         enum: ['normal', 'premium'],
         default: 'normal'
     },
+    // Upgrade request for providers
+    upgrade_request: {
+        no_of_completed_appointments: Number,
+        years_of_exp: Number,
+        no_of_languages: Number,
+        certificate: String,
+        license: String,
+        requested_at: Date,
+        status: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected']
+        },
+        reject_reason: {
+            type: String,
+            default: null
+        }
+    },
     interview: {
         date: {
             type: Date,
