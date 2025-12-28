@@ -1,7 +1,9 @@
 const User = require('../models/user.model')
 const Booking = require('../models/booking.model')
+const Service = require('../models/service.model')
 const Payment = require('../models/payment.model')
 const Conversation = require('../models/conversation.model')
+const Review = require('../models/review.model')
 const response = require('../utils/response');
 const fs = require('fs');
 const path = require('path');
@@ -1031,6 +1033,105 @@ const getServiceLogs = async (req, res) => {
     }
 };
 
+const getProviderServices = async (req, res) => {
+    try {
+        const { decoded, query } = req;
+        const providerId = decoded.id;
+        const { page = 1, limit = 10, status, category_id } = query;
+
+        // Get provider user with populated services
+        const provider = await User.findById(providerId)
+            .populate({
+                path: 'provider_services',
+                populate: {
+                    path: 'category',
+                    select: 'name description'
+                },
+                match: status ? { status } : {}
+            })
+            .lean();
+
+        if (!provider) {
+            return res.status(404).send({
+                success: false,
+                message: "Provider not found"
+            });
+        }
+
+        let services = provider.provider_services || [];
+
+        // Filter by category if provided
+        if (category_id) {
+            services = services.filter(service =>
+                service.category && service.category._id.toString() === category_id
+            );
+        }
+
+        // Calculate ratings for each service
+        const servicesWithRatings = await Promise.all(
+            services.map(async (service) => {
+                // Get reviews for this service
+                const reviews = await Review.find({
+                    service: service._id,
+                    deleted: false
+                }).select('rating');
+
+                // Calculate average rating
+                const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+                const averageRating = reviews.length > 0 ? (totalRating / reviews.length).toFixed(1) : '0.0';
+                const reviewCount = reviews.length;
+
+                return {
+                    id: service._id,
+                    name: service.name,
+                    description: service.description,
+                    price: service.price,
+                    price_type: service.price_type,
+                    duration: service.duration,
+                    status: service.status,
+                    category: service.category,
+                    rating: {
+                        average: parseFloat(averageRating),
+                        count: reviewCount
+                    },
+                    created_at: service.createdAt,
+                    updated_at: service.updatedAt
+                };
+            })
+        );
+
+        // Apply pagination
+        const total = servicesWithRatings.length;
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + parseInt(limit);
+        const paginatedServices = servicesWithRatings.slice(startIndex, endIndex);
+
+        // Pagination response
+        const pagination = {
+            current_page: parseInt(page),
+            total_pages: Math.ceil(total / limit),
+            total_records: total,
+            records_per_page: parseInt(limit)
+        };
+
+        return res.status(200).send({
+            success: true,
+            message: "Provider services retrieved successfully",
+            data: {
+                services: paginatedServices,
+                pagination
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
 const handleFavoriteServices = (async (req, res) => {
     try {
 
@@ -1381,5 +1482,6 @@ module.exports = {
     scheduleInterview,
     upgradeAccountRequest,
     upgradeAccount,
-    getServiceLogs
+    getServiceLogs,
+    getProviderServices
 }

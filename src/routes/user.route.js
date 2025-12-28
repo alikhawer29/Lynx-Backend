@@ -48,6 +48,8 @@ router.get('/favorites', AuthVerifier, userController.getFavoriteServices)
 
 router.get('/service-logs', AuthVerifier, userController.getServiceLogs)
 
+router.get('/provider/my-services', AuthVerifier, userController.getProviderServices)
+
 router.post('/logout', AuthVerifier, userController.logout)
 
 module.exports = router
