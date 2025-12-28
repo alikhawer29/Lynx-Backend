@@ -5,6 +5,8 @@ const Conversation = require('../models/conversation.model')
 const response = require('../utils/response');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose')
+
 
 const {
     paginateResponse,
@@ -812,7 +814,7 @@ const getMyProfile = async (req, res) => {
         })
     }
 }
-
+//User
 const getHome = (async (req, res) => {
     try {
 
@@ -852,6 +854,182 @@ const getHome = (async (req, res) => {
         return res.json(response.error(e.message, 400, "Home Data"));
     }
 })
+
+//Provider
+const getHomeProvider = async (req, res) => {
+    try {
+        const { decoded, query } = req;
+        const { year } = query;
+        const providerId = decoded.id;
+
+        // Get current year if not provided
+        const currentYear = year ? parseInt(year) : new Date().getFullYear();
+
+        // Get total bookings count for the provider
+        const totalAmount = await Booking.aggregate([
+            {
+                $match: {
+                    provider_id: new mongoose.Types.ObjectId(providerId),
+                    payment_status: "paid",   // optional but recommended
+                    deleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalAmount: { $sum: "$price" }
+                }
+            }
+        ]);
+
+        const totalBookingsAmount = totalAmount[0]?.totalAmount || 0;
+
+
+        // Get monthly booking data for the specified year
+        const monthlyBookings = await Booking.aggregate([
+            {
+                $match: {
+                    provider_id: new mongoose.Types.ObjectId(providerId),
+                    createdAt: {
+                        $gte: new Date(`${currentYear}-01-01T00:00:00.000Z`),
+                        $lt: new Date(`${currentYear + 1}-01-01T00:00:00.000Z`)
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: { $month: "$createdAt" },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { _id: 1 }
+            }
+        ]);
+
+        // Create array for all 12 months with 0 bookings for months with no data
+        const monthlyData = Array.from({ length: 12 }, (_, index) => {
+            const monthData = monthlyBookings.find(item => item._id === index + 1);
+            return {
+                month: index + 1,
+                monthName: new Date(currentYear, index).toLocaleString('default', { month: 'short' }),
+                bookings: monthData ? monthData.count : 0
+            };
+        });
+
+        // Get available years for filter (years when provider had bookings)
+        const availableYears = await Booking.aggregate([
+            {
+                $match: {
+                    provider_id: new mongoose.Types.ObjectId(providerId)
+                }
+            },
+            {
+                $group: {
+                    _id: { $year: "$createdAt" }
+                }
+            },
+            {
+                $sort: { _id: -1 }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    year: "$_id"
+                }
+            }
+        ]);
+
+        const data = {
+            totalBookingsAmount,
+            monthlyBookings: monthlyData,
+            selectedYear: currentYear,
+            availableYears: availableYears.map(item => item.year)
+        };
+
+        return res.status(200).send({
+            success: true,
+            message: "Provider home data retrieved successfully",
+            data
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
+const getServiceLogs = async (req, res) => {
+    try {
+        const { decoded, query } = req;
+        const providerId = decoded.id;
+        const { page = 1, limit = 10, status, date_from, date_to } = query;
+
+        // Build filter conditions
+        const filter = { provider_id: new mongoose.Types.ObjectId(providerId) };
+
+        if (status) {
+            filter.status = status;
+        }
+
+        if (date_from || date_to) {
+            filter.session_date = {};
+            if (date_from) {
+                filter.session_date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                filter.session_date.$lte = new Date(date_to);
+            }
+        }
+
+        // Get total count for pagination
+        const total = await Booking.countDocuments(filter);
+
+        // Get service logs with pagination
+        const serviceLogs = await Booking.find(filter)
+            .select('id session_date session_time status')
+            .sort({ session_date: -1, session_time: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .lean();
+
+        // Format the response data
+        const formattedLogs = serviceLogs.map(log => ({
+            id: log._id,
+            booking_id: log._id,
+            session_date: log.session_date,
+            session_time: log.session_time,
+            booking_status: log.status
+        }));
+
+        // Pagination response
+        const pagination = {
+            current_page: parseInt(page),
+            total_pages: Math.ceil(total / limit),
+            total_records: total,
+            records_per_page: parseInt(limit)
+        };
+
+        return res.status(200).send({
+            success: true,
+            message: "Service logs retrieved successfully",
+            data: {
+                service_logs: formattedLogs,
+                pagination
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
 
 const handleFavoriteServices = (async (req, res) => {
     try {
@@ -1030,8 +1208,8 @@ const upgradeAccountRequest = async (req, res) => {
         console.log(user.upgrade_request, 'user.upgrade_request')
 
         // Check if upgrade request already exists
-        if (user.upgrade_request && 
-            typeof user.upgrade_request === 'object' && 
+        if (user.upgrade_request &&
+            typeof user.upgrade_request === 'object' &&
             user.upgrade_request.status === 'pending') {
             return res.status(400).send({
                 success: false,
@@ -1058,13 +1236,13 @@ const upgradeAccountRequest = async (req, res) => {
             const ext = path.extname(certificateFile.originalname);
             const newFileName = `upgrade_certificate_${decoded.id}-${Date.now()}${ext}`;
             const newPath = path.join("uploads/upgrade_requests", newFileName);
-            
+
             // Create directory if it doesn't exist
             const dir = path.dirname(newPath);
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
-            
+
             fs.renameSync(certificateFile.path, newPath);
             certificate_path = newPath.replace(/\\/g, "/");
             console.log('Certificate saved to:', certificate_path);
@@ -1080,13 +1258,13 @@ const upgradeAccountRequest = async (req, res) => {
             const ext = path.extname(licenseFile.originalname);
             const newFileName = `upgrade_license_${decoded.id}-${Date.now()}${ext}`;
             const newPath = path.join("uploads/upgrade_requests", newFileName);
-            
+
             // Create directory if it doesn't exist
             const dir = path.dirname(newPath);
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
-            
+
             fs.renameSync(licenseFile.path, newPath);
             license_path = newPath.replace(/\\/g, "/");
             console.log('License saved to:', license_path);
@@ -1191,6 +1369,7 @@ module.exports = {
     changePassword,
     getMyProfile,
     getHome,
+    getHomeProvider,
     handleFavoriteServices,
     getFavoriteServices,
     handleStatus,
@@ -1201,5 +1380,6 @@ module.exports = {
     verifyUser,
     scheduleInterview,
     upgradeAccountRequest,
-    upgradeAccount
+    upgradeAccount,
+    getServiceLogs
 }

@@ -40,9 +40,13 @@ router.get('/my-profile', AuthVerifier, userController.getMyProfile)
 
 router.get('/home', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getHome)
 
+router.get('/provider/home', AuthVerifier, RestrictAccess([ROLES.PROVIDER]), userController.getHomeProvider)
+
 router.put('/handle-favorite/:id', AuthVerifier, userController.handleFavoriteServices)
 
 router.get('/favorites', AuthVerifier, userController.getFavoriteServices)
+
+router.get('/service-logs', AuthVerifier, userController.getServiceLogs)
 
 router.post('/logout', AuthVerifier, userController.logout)
 
