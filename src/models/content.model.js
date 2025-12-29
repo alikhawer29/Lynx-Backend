@@ -40,6 +40,10 @@ const contentSchema = mongoose.Schema({
     active: {
         type: Boolean,
         default: true
+    },
+    no_of_views: {
+        type: Number,
+        default: 5
     }
 }, {
     timestamps: true,

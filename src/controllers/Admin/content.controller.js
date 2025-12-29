@@ -163,10 +163,33 @@ const deleteContent = (async (req, res) => {
     }
 })
 
+const toggleContentStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const content = await Content.findById(id);
+
+        if (!content) {
+            throw new Error('Content not found');
+        }
+
+        // Toggle the active status
+        content.active = !content.active;
+        await content.save();
+
+        return ResponseHandler.success(res, `Content ${content.active ? 'activated' : 'deactivated'} successfully`, content);
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return ResponseHandler.error(res, e.message, 400);
+    }
+}
+
 module.exports = {
     createContent,
     getContent,
     getContentById,
     updateContent,
-    deleteContent
+    deleteContent,
+    toggleContentStatus
 }

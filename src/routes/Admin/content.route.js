@@ -16,4 +16,6 @@ router.patch('/update/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), content
 
 router.delete('/delete/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), contentController.deleteContent)
 
+router.patch('/status/:id', AuthVerifier, RestrictAccess([ROLES.ADMIN]), contentController.toggleContentStatus)
+
 module.exports = router
