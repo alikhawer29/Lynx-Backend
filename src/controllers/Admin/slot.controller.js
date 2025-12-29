@@ -336,48 +336,35 @@ const updateSlot = async (req, res) => {
             // Support both array and single object for flexibility
             const timeArray = Array.isArray(times) ? times : [times];
 
-            for (const time of timeArray) {
-                const { start_time, end_time, is_active } = time;
+            try {
+                // 🗑️ Delete all existing slots for this day first
+                await Slot.deleteMany({ day: day.toLowerCase() });
 
-                if (!start_time || !end_time) {
-                    errors.push({ day, error: 'start_time and end_time are required' });
-                    continue;
-                }
+                // 🆕 Create new slots for this day
+                for (const time of timeArray) {
+                    const { start_time, end_time, is_active } = time;
 
-                if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
-                    errors.push({ day, error: `Invalid time format for ${start_time} - ${end_time}` });
-                    continue;
-                }
+                    if (!start_time || !end_time) {
+                        errors.push({ day, error: 'start_time and end_time are required' });
+                        continue;
+                    }
 
-                try {
-                    // 🕓 Check if slot exists
-                    const existingSlot = await Slot.findOne({
+                    if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
+                        errors.push({ day, error: `Invalid time format for ${start_time} - ${end_time}` });
+                        continue;
+                    }
+
+                    const newSlot = await Slot.create({
                         day: day.toLowerCase(),
                         start_time,
                         end_time,
+                        is_active: typeof is_active !== 'undefined' ? is_active : true,
+                        created_by: decoded.id,
                     });
-
-                    if (existingSlot) {
-                        // 🔄 Update
-                        if (typeof is_active !== 'undefined') {
-                            existingSlot.is_active = is_active;
-                        }
-                        await existingSlot.save();
-                        updatedSlots.push(existingSlot);
-                    } else {
-                        // 🆕 (Optional) Create new slot if not found
-                        const newSlot = await Slot.create({
-                            day: day.toLowerCase(),
-                            start_time,
-                            end_time,
-                            created_by: decoded.id,
-                        });
-                        updatedSlots.push(newSlot);
-                    }
-
-                } catch (err) {
-                    errors.push({ day, time: `${start_time}-${end_time}`, error: err.message });
+                    updatedSlots.push(newSlot);
                 }
+            } catch (err) {
+                errors.push({ day, error: err.message });
             }
         }
 
