@@ -742,7 +742,7 @@ const rescheduleBooking = async (req, res) => {
 
         // Validate proposed slot if provided
         if (proposed_slot_id) {
-            const Slot = require('../models/slot.model');
+            const Slot = require('../../models/slot.model');
             const slot = await Slot.findById(proposed_slot_id);
 
             if (!slot) {
