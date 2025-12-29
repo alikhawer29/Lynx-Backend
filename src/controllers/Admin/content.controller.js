@@ -132,11 +132,24 @@ const getContentById = (async (req, res) => {
 
 const updateContent = (async (req, res) => {
     try {
-
-        const { body, params } = req
+        const { body, params, files } = req
         const { id } = params
 
-        let content = await Content.findByIdAndUpdate(id, { $set: body }, { new: true })
+        let payload = { ...body }
+
+        // Handle file uploads if present
+        if (files) {
+            const media = files?.media?.[0] || null
+            const media_thumbnail = files?.media_thumbnail?.[0] || null
+
+            if (media) {
+                payload.media = normalize(media.path)
+                payload.media_thumbnail = media_thumbnail ? normalize(media_thumbnail.path) : null
+                payload.media_type = payload.type === CONTENT_TYPES.ARTICLE ? "image" : "video"
+            }
+        }
+
+        let content = await Content.findByIdAndUpdate(id, { $set: payload }, { new: true })
 
         return ResponseHandler.success(res, "Content Updated Successfully", content)
 
