@@ -45,7 +45,7 @@ const getContent = async (req, res) => {
 
         let { limit, skip } = paginationHandler(page, per_page);
 
-        let filter = {};
+        let filter = { deleted: false };
         let sort = {};
 
         // Search

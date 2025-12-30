@@ -44,6 +44,14 @@ const contentSchema = mongoose.Schema({
     no_of_views: {
         type: Number,
         default: 5
+    },
+    deleted: {
+        type: Boolean,
+        default: false
+    },
+    deletedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true,
@@ -78,5 +86,12 @@ contentSchema.virtual('media_thumbnail_url').get(function () {
 })
 
 contentSchema.plugin(mongooseLeanVirtuals)
+
+// --- Instance methods ---
+contentSchema.methods.trash = async function () {
+    this.deleted = true;
+    this.deletedAt = new Date();
+    await this.save();
+}
 
 module.exports = mongoose.model('Content', contentSchema)

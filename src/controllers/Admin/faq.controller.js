@@ -16,7 +16,7 @@ const get = async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return ResponseHandler.error(res, "Failed to retrieve FAQs", e.message);
+        return ResponseHandler.error(res, "Failed to retrieve FAQs");
     }
 }
 
@@ -33,15 +33,15 @@ const add = async (req, res) => {
 
         // Validate required fields based on answer_type
         if (answer_type === 'text' && !answer_text) {
-            return ResponseHandler.error(res, "Answer text is required for text type", "Answer text is required for text type");
+            return ResponseHandler.error(res, "Answer text is required for text type");
         }
 
         if (answer_type === 'image' && !answer_image) {
-            return ResponseHandler.error(res, "Answer image is required for image type", "Answer image is required for image type");
+            return ResponseHandler.error(res, "Answer image is required for image type");
         }
 
         if (answer_type === 'video' && !answer_video) {
-            return ResponseHandler.error(res, "Answer video is required for video type", "Answer video is required for video type");
+            return ResponseHandler.error(res, "Answer video is required for video type");
         }
 
         // Prepare FAQ data
@@ -75,7 +75,7 @@ const add = async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return ResponseHandler.error(res, "Failed to add FAQ", e.message);
+        return ResponseHandler.error(res, e.message);
     }
 }
 
@@ -89,7 +89,7 @@ const edit = async (req, res) => {
 
         const faq = await FAQ.findById(id)
         if (!faq) {
-            return ResponseHandler.error(res, "FAQ not found", "FAQ not found");
+            return ResponseHandler.error(res, "FAQ not found");
         }
 
         // Prepare update data
@@ -148,7 +148,7 @@ const edit = async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return ResponseHandler.error(res, "Failed to update FAQ", e.message);
+        return ResponseHandler.error(res, "Failed to update FAQ");
     }
 }
 
@@ -181,7 +181,7 @@ const remove = async (req, res) => {
 
         const faq = await FAQ.findById(id)
         if (!faq) {
-            return ResponseHandler.error(res, "FAQ not found", "FAQ not found");
+            return ResponseHandler.error(res, "FAQ not found");
         }
 
         // Delete associated files if they exist
@@ -193,7 +193,7 @@ const remove = async (req, res) => {
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return ResponseHandler.error(res, "Failed to delete FAQ", e.message);
+        return ResponseHandler.error(res, "Failed to delete FAQ");
     }
 }
 
@@ -207,14 +207,14 @@ const getById = async (req, res) => {
             .exec()
 
         if (!faq) {
-            return ResponseHandler.error(res, "FAQ not found", "FAQ not found");
+            return ResponseHandler.error(res, "FAQ not found");
         }
 
         return ResponseHandler.success(res, "FAQ retrieved successfully", faq);
 
     } catch (e) {
         console.log("Error Message :: ", e)
-        return ResponseHandler.error(res, "Failed to retrieve FAQ", e.message);
+        return ResponseHandler.error(res, "Failed to retrieve FAQ");
     }
 }
 

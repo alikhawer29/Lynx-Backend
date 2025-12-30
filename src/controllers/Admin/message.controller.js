@@ -161,7 +161,7 @@ const getMessages = async (req, res) => {
             deleted_for: { $ne: userId },
         });
 
-        return ResponseHandler.success(res, "Messages retrieved successfully", messages, total);
+        return ResponseHandler.success(res, "Messages retrieved successfully", messages, ResponseHandler.HTTP_OK, { total });
 
     } catch (e) {
         console.log('Error Message :: ', e);
