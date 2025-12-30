@@ -1125,7 +1125,19 @@ const getUpgradeRequestDetails = async (req, res) => {
             ...user,
             image_url: user.image_url || null,
             resume_url: user.resume_url || null,
-            certifications_with_urls: user.certifications_with_urls || []
+            certifications_with_urls: user.certifications_with_urls || [],
+            // Add URLs for upgrade request files
+            upgrade_request: {
+                ...user.upgrade_request,
+                certificate_url: user.upgrade_request?.certificate ?
+                    (user.upgrade_request.certificate.startsWith('http') ?
+                        user.upgrade_request.certificate :
+                        `${process.env.BASE_URL}${user.upgrade_request.certificate}`) : null,
+                license_url: user.upgrade_request?.license ?
+                    (user.upgrade_request.license.startsWith('http') ?
+                        user.upgrade_request.license :
+                        `${process.env.BASE_URL}${user.upgrade_request.license}`) : null
+            }
         };
 
         return ResponseHandler.success(res, "Upgrade request details retrieved successfully.", response);
