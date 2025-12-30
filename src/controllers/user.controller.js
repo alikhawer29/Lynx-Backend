@@ -389,7 +389,10 @@ const updateUser = async (req, res) => {
             if (profileFile) {
                 let user = await User.findById(decoded.id);
                 if (user?.picture && !user.picture.includes("dummy")) {
-                    fs.unlinkSync(user.picture);
+                    // Check if file exists before trying to delete it
+                    if (fs.existsSync(user.picture)) {
+                        fs.unlinkSync(user.picture);
+                    }
                 }
                 payload.picture = profileFile.path.replace(/\\/g, "/");
             }
