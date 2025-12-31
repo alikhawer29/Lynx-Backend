@@ -50,6 +50,12 @@ router.get('/service-logs', AuthVerifier, userController.getServiceLogs)
 
 router.get('/provider/my-services', AuthVerifier, userController.getProviderServices)
 
+router.post('/provider/cancel-booking', AuthVerifier, RestrictAccess([ROLES.PROVIDER]), userController.cancelBookingByProvider)
+
+router.get('/provider/approved-appointments', AuthVerifier, RestrictAccess([ROLES.PROVIDER]), userController.getProviderApprovedAppointments)
+
+router.get('/provider/approved', AuthVerifier, RestrictAccess([ROLES.PROVIDER]), userController.getApprovedProvider)
+
 router.post('/logout', AuthVerifier, userController.logout)
 
 module.exports = router

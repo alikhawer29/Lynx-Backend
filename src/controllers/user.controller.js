@@ -976,9 +976,10 @@ const getServiceLogs = async (req, res) => {
         // Build filter conditions
         const filter = { provider_id: new mongoose.Types.ObjectId(providerId) };
 
-        if (status) {
-            filter.status = status;
-        }
+        // if (status) {
+        filter.status = 'approved';
+        filter.booking_status = 'upcoming';
+        // }
 
         if (date_from || date_to) {
             filter.session_date = {};
@@ -995,7 +996,7 @@ const getServiceLogs = async (req, res) => {
 
         // Get service logs with pagination
         const serviceLogs = await Booking.find(filter)
-            .select('id session_date session_time status')
+            .select('id session_date session_time status booking_status booking_id')
             .sort({ session_date: -1, session_time: -1 })
             .limit(limit * 1)
             .skip((page - 1) * limit)
@@ -1004,10 +1005,10 @@ const getServiceLogs = async (req, res) => {
         // Format the response data
         const formattedLogs = serviceLogs.map(log => ({
             id: log._id,
-            booking_id: log._id,
+            booking_id: log.booking_id,
             session_date: log.session_date,
             session_time: log.session_time,
-            booking_status: log.status
+            booking_status: log.booking_status
         }));
 
         // Pagination response
@@ -1050,9 +1051,10 @@ const getProviderServices = async (req, res) => {
                     path: 'category',
                     select: 'name description'
                 },
-                match: status ? { status } : {}
+                match: status ? { status } : {},
+                options: { virtuals: true }
             })
-            .lean();
+            .lean({ virtuals: true });
 
         if (!provider) {
             return res.status(404).send({
@@ -1093,6 +1095,8 @@ const getProviderServices = async (req, res) => {
                     duration: service.duration,
                     status: service.status,
                     category: service.category,
+                    // image: service.image,
+                    image_url: service.image_url,
                     rating: {
                         average: parseFloat(averageRating),
                         count: reviewCount
@@ -1464,6 +1468,333 @@ const upgradeAccount = async (req, res) => {
     }
 };
 
+const cancelBookingByProvider = async (req, res) => {
+    try {
+        const { decoded, body } = req;
+        const providerId = decoded.id;
+        const { booking_id, cancellation_reason } = body;
+
+        // Validate required fields
+        if (!booking_id) {
+            return res.status(400).send({
+                success: false,
+                message: "booking_id is required"
+            });
+        }
+
+        if (!cancellation_reason || cancellation_reason.trim() === '') {
+            return res.status(400).send({
+                success: false,
+                message: "cancellation_reason is required"
+            });
+        }
+
+        // Find the booking
+        const booking = await Booking.findOne({
+            _id: booking_id,
+            provider_id: new mongoose.Types.ObjectId(providerId)
+        });
+
+        if (!booking) {
+            return res.status(404).send({
+                success: false,
+                message: "Booking not found or you don't have permission to cancel this booking"
+            });
+        }
+
+        // Check if booking can be cancelled (not already cancelled, completed, or rejected)
+        if (booking.status === 'cancelled') {
+            return res.status(400).send({
+                success: false,
+                message: "Booking is already cancelled"
+            });
+        }
+
+        if (booking.status === 'completed') {
+            return res.status(400).send({
+                success: false,
+                message: "Cannot cancel a completed booking"
+            });
+        }
+
+        if (booking.status === 'rejected') {
+            return res.status(400).send({
+                success: false,
+                message: "Cannot cancel a rejected booking"
+            });
+        }
+
+        // Update booking status and add cancellation reason
+        booking.status = 'cancelled';
+        booking.cancellation_reason = cancellation_reason.trim();
+        booking.cancelled_by = 'provider';
+        booking.cancelled_at = new Date();
+
+        await booking.save();
+
+        // Send notification to user about cancellation
+        try {
+            await sendNotification(
+                booking.user_id,
+                'booking_cancelled',
+                `Your booking ${booking_id} has been cancelled by the provider`,
+                {
+                    booking_id: booking_id,
+                    cancellation_reason: cancellation_reason,
+                    cancelled_by: 'provider'
+                }
+            );
+        } catch (notificationError) {
+            console.log("Notification error:", notificationError);
+            // Continue even if notification fails
+        }
+
+        return res.status(200).send({
+            success: true,
+            message: "Booking cancelled successfully",
+            data: {
+                booking_id: booking.booking_id,
+                status: booking.status,
+                cancellation_reason: booking.cancellation_reason,
+                cancelled_by: booking.cancelled_by,
+                cancelled_at: booking.cancelled_at
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
+const getProviderApprovedAppointments = async (req, res) => {
+    try {
+        const { decoded, query } = req;
+        const providerId = decoded.id;
+        const { page = 1, limit = 10, from, to, booking_status, search } = query;
+
+        // Build filter conditions for approved bookings
+        const filter = {
+            provider_id: new mongoose.Types.ObjectId(providerId),
+            status: 'approved'
+        };
+
+        // Date range filter
+        if (from || to) {
+            filter.session_date = {};
+            if (from) {
+                filter.session_date.$gte = new Date(from);
+            }
+            if (to) {
+                filter.session_date.$lte = new Date(to);
+            }
+        }
+
+        // Booking status filter
+        if (booking_status && booking_status !== 'all') {
+            filter.booking_status = booking_status;
+        }
+
+        // Search filter - search in booking_id, user details, and service name
+        let searchFilter = {};
+        if (search) {
+            searchFilter = {
+                $or: [
+                    { booking_id: { $regex: search, $options: 'i' } },
+                    { 'user_id.first_name': { $regex: search, $options: 'i' } },
+                    { 'user_id.last_name': { $regex: search, $options: 'i' } },
+                    { 'user_id.email': { $regex: search, $options: 'i' } },
+                    { 'service_id.name': { $regex: search, $options: 'i' } }
+                ]
+            };
+        }
+
+        // Get total count for pagination
+        const total = await Booking.countDocuments(filter);
+
+        // Get approved bookings with pagination and filters
+        let approvedBookings;
+
+        if (search) {
+            // Use aggregation for search functionality
+            const pipeline = [
+                { $match: filter },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'user_id',
+                        foreignField: '_id',
+                        as: 'user_id',
+                        pipeline: [
+                            { $project: { first_name: 1, last_name: 1, email: 1, phone: 1, picture: 1 } }
+                        ]
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'services',
+                        localField: 'service_id',
+                        foreignField: '_id',
+                        as: 'service_id',
+                        pipeline: [
+                            { $project: { name: 1, description: 1, price: 1, duration: 1, image_url: 1 } }
+                        ]
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'categories',
+                        localField: 'category_id',
+                        foreignField: '_id',
+                        as: 'category_id',
+                        pipeline: [
+                            { $project: { name: 1, description: 1 } }
+                        ]
+                    }
+                },
+                { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: '$service_id', preserveNullAndEmptyArrays: true } },
+                { $unwind: { path: '$category_id', preserveNullAndEmptyArrays: true } },
+                {
+                    $match: {
+                        $or: [
+                            { booking_id: { $regex: search, $options: 'i' } },
+                            { 'user_id.first_name': { $regex: search, $options: 'i' } },
+                            { 'user_id.last_name': { $regex: search, $options: 'i' } },
+                            { 'user_id.email': { $regex: search, $options: 'i' } },
+                            { 'service_id.name': { $regex: search, $options: 'i' } }
+                        ]
+                    }
+                },
+                {
+                    $project: {
+                        booking_id: 1,
+                        session_date: 1,
+                        session_time: 1,
+                        status: 1,
+                        booking_status: 1,
+                        payment_status: 1,
+                        address: 1,
+                        contact_details: 1,
+                        notes: 1,
+                        user_id: 1,
+                        service_id: 1,
+                        category_id: 1
+                    }
+                },
+                { $sort: { session_date: -1, session_time: -1 } },
+                { $skip: (page - 1) * limit },
+                { $limit: limit * 1 }
+            ];
+
+            approvedBookings = await Booking.aggregate(pipeline);
+        } else {
+            // Regular query without search
+            approvedBookings = await Booking.find(filter)
+                .populate('user_id', 'first_name last_name email phone picture')
+                .populate('service_id', 'name description price duration image_url')
+                .populate('category_id', 'name description')
+                .select('booking_id session_date session_time status booking_status payment_status address contact_details notes')
+                .sort({ session_date: -1, session_time: -1 })
+                .limit(limit * 1)
+                .skip((page - 1) * limit)
+                .lean();
+        }
+
+        // Format the response data
+        const formattedAppointments = approvedBookings.map(booking => ({
+            id: booking._id,
+            booking_id: booking.booking_id,
+            session_date: booking.session_date,
+            session_time: booking.session_time,
+            status: booking.status,
+            booking_status: booking.booking_status,
+            payment_status: booking.payment_status,
+            user: booking.user_id,
+            service: booking.service_id,
+            category: booking.category_id,
+            address: booking.address,
+            contact_details: booking.contact_details,
+            notes: booking.notes
+        }));
+
+        // Pagination response
+        const pagination = {
+            current_page: parseInt(page),
+            total_pages: Math.ceil(total / limit),
+            total_records: total,
+            records_per_page: parseInt(limit)
+        };
+
+        return res.status(200).send({
+            success: true,
+            message: "Provider approved appointments retrieved successfully",
+            data: {
+                appointments: formattedAppointments,
+                pagination
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
+const getApprovedProvider = async (req, res) => {
+    try {
+        const { decoded } = req;
+        const providerId = decoded.id;
+
+        // Find the provider with approved status
+        const provider = await User.findById(providerId)
+            .select('first_name last_name email picture phone role is_verified booking_category')
+            .lean();
+
+        if (!provider) {
+            return res.status(404).send({
+                success: false,
+                message: "Provider not found"
+            });
+        }
+
+        // Check if user is a provider
+        if (provider.role !== 'provider') {
+            return res.status(403).send({
+                success: false,
+                message: "User is not a provider"
+            });
+        }
+
+        // Check if provider is verified (approved)
+        if (!provider.is_verified) {
+            return res.status(403).send({
+                success: false,
+                message: "Provider is not approved"
+            });
+        }
+
+        return res.status(200).send({
+            success: true,
+            message: "Approved provider retrieved successfully",
+            data: provider
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
 module.exports = {
     completeProfile,
     getUser,
@@ -1486,5 +1817,8 @@ module.exports = {
     upgradeAccountRequest,
     upgradeAccount,
     getServiceLogs,
-    getProviderServices
+    getProviderServices,
+    cancelBookingByProvider,
+    getProviderApprovedAppointments,
+    getApprovedProvider
 }

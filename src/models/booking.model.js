@@ -120,6 +120,14 @@ const bookingSchema = new mongoose.Schema(
             ref: "Payment",
         },
 
+        // Cancellation fields
+        cancellation_reason: { type: String },
+        cancelled_by: {
+            type: String,
+            enum: ['user', 'provider', 'admin'],
+        },
+        cancelled_at: { type: Date },
+
         // Soft delete fields
         deleted: { type: Boolean, default: false },
         deletedAt: { type: Date },
