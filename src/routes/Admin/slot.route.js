@@ -13,7 +13,7 @@ const { ROLES } = require('../../utils');
 router.post(
     '/create',
     AuthVerifier,
-    // RestrictAccess([ROLES.ADMIN]),
+    RestrictAccess([ROLES.ADMIN]),
     slotController.createSlot
 );
 
@@ -21,7 +21,7 @@ router.post(
 router.patch(
     '/update',
     AuthVerifier,
-    // RestrictAccess([ROLES.ADMIN]),
+    RestrictAccess([ROLES.ADMIN]),
     slotController.updateSlot
 );
 

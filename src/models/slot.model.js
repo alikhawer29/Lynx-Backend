@@ -85,6 +85,9 @@ slotSchema.methods.restore = async function () {
 };
 
 // --- Virtuals ---
+// Note: These virtual fields show UTC times (as stored in database)
+// They are automatically recalculated with converted timezone times when using
+// convertSlotTimesFromUTC() helper in controllers
 slotSchema.virtual('time_range').get(function () {
     return `${this.start_time} - ${this.end_time}`;
 });

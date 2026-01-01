@@ -35,6 +35,12 @@ const userSchema = mongoose.Schema({
             return this.role === ROLES.USER
         }
     },
+    timezone: {
+        type: String,
+        default: 'UTC', // Default timezone for new users (IANA timezone format, e.g., 'Asia/Karachi', 'America/New_York')
+        // Note: You can change this default or set DEFAULT_TIMEZONE in .env file
+        // The timezone helper will use user.timezone first, then env var, then 'UTC'
+    },
     picture: {
         type: String,
         default: "uploads/user/dummy.jpg"

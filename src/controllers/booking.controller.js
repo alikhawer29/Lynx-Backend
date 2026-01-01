@@ -23,6 +23,7 @@ const {
     sendRescheduleResponseNotifications,
 } = require('../helpers/bookingNotification');
 const ResponseHandler = require('../utils/response');
+const { getUserTimezone, convertTimeToUTC } = require('../helpers/timezone');
 
 dotenv.config();
 
@@ -42,11 +43,21 @@ const createBooking = async (req, res) => {
         // Auto-generate unique booking ID
         const nextId = await getNextSequence('booking'); // will return 1001, 1002, etc.
 
+        // Get user's timezone (from user profile or request)
+        const user = await User.findById(decoded.id);
+        const userTimezone = getUserTimezone(req, user);
+
         const payload = {
             ...body,
             booking_id: nextId,
             user_id: decoded.id,
         };
+
+        // Convert session_time from user's timezone to UTC before storing
+        if (payload.session_time) {
+            const sessionDateForConversion = payload.session_date ? new Date(payload.session_date) : new Date();
+            payload.session_time = convertTimeToUTC(payload.session_time, userTimezone, sessionDateForConversion);
+        }
 
         // Auto-assign slot_id if not provided but session_date and session_time are provided
         if (!payload.slot_id && payload.session_date && payload.session_time) {
@@ -57,23 +68,21 @@ const createBooking = async (req, res) => {
             const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const dayOfWeek = daysOfWeek[sessionDate.getDay()];
 
-            // Parse session time (e.g., "13:00" -> 13)
-            const sessionHour = parseInt(payload.session_time.split(':')[0]);
-            const sessionMinute = parseInt(payload.session_time.split(':')[1] || '0');
-
-            // Find slot that contains this time
+            // Find slots (they are stored in UTC)
             const slots = await Slot.find({
                 day: dayOfWeek,
                 is_active: true,
                 deleted: false
             });
 
-            // Find matching slot where session_time falls within start_time and end_time
+            // Find matching slot where session_time (already in UTC) falls within start_time and end_time (both in UTC)
             const matchingSlot = slots.find(slot => {
                 const startHour = parseInt(slot?.start_time.split(':')[0]);
                 const startMinute = parseInt(slot?.start_time.split(':')[1] || '0');
                 const endHour = parseInt(slot?.end_time.split(':')[0]);
                 const endMinute = parseInt(slot?.end_time.split(':')[1] || '0');
+                const sessionHour = parseInt(payload.session_time.split(':')[0]);
+                const sessionMinute = parseInt(payload.session_time.split(':')[1] || '0');
 
                 const sessionTotalMinutes = sessionHour * 60 + sessionMinute;
                 const startTotalMinutes = startHour * 60 + startMinute;
@@ -84,9 +93,9 @@ const createBooking = async (req, res) => {
 
             if (matchingSlot) {
                 payload.slot_id = matchingSlot._id;
-                console.log(`Auto-assigned slot_id: ${matchingSlot._id} for ${dayOfWeek} ${payload.session_time}`);
+                console.log(`Auto-assigned slot_id: ${matchingSlot._id} for ${dayOfWeek} ${payload.session_time} UTC`);
             } else {
-                console.log(`Warning: No matching slot found for ${dayOfWeek} ${payload.session_time}`);
+                console.log(`Warning: No matching slot found for ${dayOfWeek} ${payload.session_time} UTC`);
             }
         }
 

@@ -7,14 +7,16 @@ const { sendBookingStatusChangeNotifications } = require('../helpers/bookingNoti
  * Cron Job: Update Booking Status Based on Date/Time
  *
  * Logic:
- * 1. If booking is approved and session has started → booking_status = 'in_progress'
- * 2. If booking is in_progress and session has ended → booking_status = 'past'
+ * 1. If booking session has ended → booking_status = 'past' (handles both 'upcoming' and 'in_progress')
+ * 2. If booking is approved and session has started (but not ended) → booking_status = 'in_progress'
  *
  * Status values:
  * - status: pending, approved, requested, rejected, cancelled
  * - booking_status: upcoming, in_progress, past
  *
- * Runs every 5 minutes
+ * Note: All time comparisons use UTC to avoid timezone issues across different server environments
+ *
+ * Runs every minute
  */
 
 const updateBookingStatuses = async () => {
@@ -44,21 +46,47 @@ const updateBookingStatuses = async () => {
                 const slotStartTime = booking.slot_id.start_time; // e.g., "09:00"
                 const slotEndTime = booking.slot_id.end_time;     // e.g., "10:00"
 
-                // Parse session date
+                // Parse session date - MongoDB stores dates in UTC
                 const sessionDate = new Date(booking.session_date);
 
-                // Create session start datetime using slot start_time
+                // Extract UTC date components to avoid timezone issues
+                const year = sessionDate.getUTCFullYear();
+                const month = sessionDate.getUTCMonth();
+                const day = sessionDate.getUTCDate();
+
+                // Create session start datetime using slot start_time in UTC
                 const [startHours, startMinutes] = slotStartTime.split(':').map(Number);
-                const sessionStart = new Date(sessionDate);
-                sessionStart.setHours(startHours, startMinutes, 0, 0);
+                const sessionStart = new Date(Date.UTC(year, month, day, startHours, startMinutes, 0, 0));
 
-                // Create session end datetime using slot end_time
+                // Create session end datetime using slot end_time in UTC
                 const [endHours, endMinutes] = slotEndTime.split(':').map(Number);
-                const sessionEnd = new Date(sessionDate);
-                sessionEnd.setHours(endHours, endMinutes, 0, 0);
+                const sessionEnd = new Date(Date.UTC(year, month, day, endHours, endMinutes, 0, 0));
+                console.log(sessionStart, 'sessionStart');
+                console.log(sessionEnd, 'sessionEnd');
 
-                // Check if session has started
-                if (now >= sessionStart && now < sessionEnd && booking.booking_status === 'upcoming') {
+                // Check if session has ended (handle both 'in_progress' and 'upcoming' that have already ended)
+                if (now > sessionEnd) {
+                    // Session has ended - mark as past regardless of current booking_status
+                    if (booking.booking_status !== 'past') {
+                        booking.booking_status = 'past';
+                        await booking.save();
+
+                        // Populate for notifications
+                        await booking.populate([
+                            { path: 'user_id', select: 'first_name last_name email' },
+                            { path: 'provider_id', select: 'first_name last_name email' },
+                            { path: 'service_id', select: 'name' },
+                        ]);
+
+                        // Send notifications
+                        sendBookingStatusChangeNotifications(booking, 'past');
+
+                        updatedToPast++;
+                        console.log(`[CRON] ✅ Booking ${booking.booking_id} → past (session ended at ${sessionEnd.toISOString()})`);
+                    }
+                }
+                // Check if session has started (only if not already ended)
+                else if (now >= sessionStart && booking.booking_status === 'upcoming') {
                     booking.booking_status = 'in_progress';
                     await booking.save();
 
@@ -73,27 +101,7 @@ const updateBookingStatuses = async () => {
                     sendBookingStatusChangeNotifications(booking, 'in_progress');
 
                     updatedToInProgress++;
-                    console.log(`[CRON] ✅ Booking ${booking.booking_id} → in_progress`);
-                }
-
-                // Check if session has ended
-                if (now >= sessionEnd && booking.booking_status === 'in_progress') {
-                    booking.booking_status = 'past';
-                    // Keep status as 'approved' - booking_status handles time-based state
-                    await booking.save();
-
-                    // Populate for notifications
-                    await booking.populate([
-                        { path: 'user_id', select: 'first_name last_name email' },
-                        { path: 'provider_id', select: 'first_name last_name email' },
-                        { path: 'service_id', select: 'name' },
-                    ]);
-
-                    // Send notifications
-                    sendBookingStatusChangeNotifications(booking, 'past');
-
-                    updatedToPast++;
-                    console.log(`[CRON] ✅ Booking ${booking.booking_id} → past`);
+                    console.log(`[CRON] ✅ Booking ${booking.booking_id} → in_progress (session started at ${sessionStart.toISOString()})`);
                 }
 
             } catch (error) {
@@ -112,10 +120,10 @@ const updateBookingStatuses = async () => {
  * Start the cron job
  */
 const startBookingStatusCron = () => {
-    // Run every 5 minutes
+    // Run every minute
     cron.schedule('* * * * *', updateBookingStatuses);
 
-    console.log('✅ Booking status cron job started (runs every 5 minutes)');
+    console.log('✅ Booking status cron job started (runs every minute)');
 
     // Run immediately on startup
     updateBookingStatuses();

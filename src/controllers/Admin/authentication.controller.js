@@ -11,7 +11,7 @@ const ResponseHandler = require('../../utils/response')
 
 const login = async (req, res) => {
     try {
-        let { email, password, device_id } = req.body;
+        let { email, password, device_id, timezone } = req.body;
 
         if (!email || !password) {
             throw new Error(ERRORS.REQUIRED_FIELD);
@@ -36,6 +36,21 @@ const login = async (req, res) => {
             throw new Error(ERRORS.UNAUTHORIZED);
         }
 
+        // Update timezone if provided (for current location)
+        if (timezone) {
+            const moment = require('moment-timezone');
+            try {
+                // Validate timezone
+                if (moment.tz.zone(timezone)) {
+                    userExist.timezone = timezone;
+                } else {
+                    console.warn(`Invalid timezone provided: ${timezone}`);
+                }
+            } catch (error) {
+                console.warn(`Error validating timezone: ${error.message}`);
+            }
+        }
+
         let token = await generateToken({
             id: userExist._id,
             email: userExist.email,
@@ -44,8 +59,9 @@ const login = async (req, res) => {
 
         if (device_id) {
             userExist.device_ids = device_id;
-            await userExist.save();
         }
+
+        await userExist.save();
 
         // Prepare user data with only required fields
         let userData = {

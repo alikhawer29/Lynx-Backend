@@ -978,7 +978,7 @@ const getServiceLogs = async (req, res) => {
 
         // if (status) {
         filter.status = 'approved';
-        filter.booking_status = 'upcoming';
+        // filter.booking_status = 'upcoming';
         // }
 
         if (date_from || date_to) {

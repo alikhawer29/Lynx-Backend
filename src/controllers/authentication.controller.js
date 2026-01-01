@@ -14,7 +14,7 @@ const path = require("path");
 const socialLogin = (async (req, res) => {
     try {
 
-        let { access_token, type, source, device_id } = req.body
+        let { access_token, type, source, device_id, timezone } = req.body
 
         if (!access_token || !type) {
             throw new Error(ERRORS.REQUIRED_FIELD)
@@ -55,13 +55,40 @@ const socialLogin = (async (req, res) => {
         let userExist = await User.findOne({ provider_id: sub }, projection).populate([{ path: "manager" }])
 
         if (!userExist) {
-            userExist = await User.create({
+            // Create new user with timezone if provided
+            const userData = {
                 name,
                 email,
                 picture,
                 auth_provider: type,
                 provider_id: sub
-            });
+            };
+
+            // Add timezone if provided
+            if (timezone) {
+                const moment = require('moment-timezone');
+                try {
+                    if (moment.tz.zone(timezone)) {
+                        userData.timezone = timezone;
+                    }
+                } catch (error) {
+                    console.warn(`Invalid timezone provided: ${timezone}`);
+                }
+            }
+
+            userExist = await User.create(userData);
+        } else {
+            // Update timezone if provided (for existing user)
+            if (timezone) {
+                const moment = require('moment-timezone');
+                try {
+                    if (moment.tz.zone(timezone)) {
+                        userExist.timezone = timezone;
+                    }
+                } catch (error) {
+                    console.warn(`Invalid timezone provided: ${timezone}`);
+                }
+            }
         }
 
         let requested_user_role = source ? source : ROLES.MANAGER
@@ -109,7 +136,7 @@ const socialLogin = (async (req, res) => {
 const login = (async (req, res) => {
     try {
 
-        let { email, password, source, device_id } = req.body
+        let { email, password, source, device_id, timezone } = req.body
 
         if (!email || !password) {
             throw new Error(ERRORS.REQUIRED_FIELD)
@@ -147,7 +174,20 @@ const login = (async (req, res) => {
             throw new Error(ERRORS.BLOCKEDBY_ADMIN)
         }
 
-
+        // Update timezone if provided (for current location)
+        if (timezone) {
+            const moment = require('moment-timezone');
+            try {
+                // Validate timezone
+                if (moment.tz.zone(timezone)) {
+                    userExist.timezone = timezone;
+                } else {
+                    console.warn(`Invalid timezone provided: ${timezone}`);
+                }
+            } catch (error) {
+                console.warn(`Error validating timezone: ${error.message}`);
+            }
+        }
 
         let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
 
@@ -212,6 +252,23 @@ const signup = async (req, res) => {
 
         // Default role
         payload.role = role || ROLES.USER;
+
+        // Validate and set timezone if provided
+        if (body.timezone) {
+            const moment = require('moment-timezone');
+            try {
+                // Validate timezone
+                if (moment.tz.zone(body.timezone)) {
+                    payload.timezone = body.timezone;
+                } else {
+                    console.warn(`Invalid timezone provided during signup: ${body.timezone}`);
+                    // Will use default from model
+                }
+            } catch (error) {
+                console.warn(`Error validating timezone during signup: ${error.message}`);
+                // Will use default from model
+            }
+        }
 
         // ===============================
         // FILE MAP (IMPORTANT FIX)

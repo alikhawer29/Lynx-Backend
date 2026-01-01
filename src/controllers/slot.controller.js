@@ -2,6 +2,8 @@ const dotenv = require('dotenv');
 const Slot = require('../models/slot.model');
 const Booking = require('../models/booking.model');
 const { ERRORS, objectValidator, paginationHandler, getDateRangeQuery } = require('../utils');
+const User = require('../models/user.model');
+const { getUserTimezone, convertSlotsArrayFromUTC, convertSlotTimesFromUTC } = require('../helpers/timezone');
 
 dotenv.config();
 
@@ -180,6 +182,11 @@ const getSlots = async (req, res) => {
     try {
         let { page, per_page, day, is_active, from, to, service_id, date } = req.query;
 
+        // Get user's timezone (from user profile or request)
+        const user = req.decoded ? await User.findById(req.decoded.id) : null;
+        const userTimezone = getUserTimezone(req, user);
+        const referenceDate = date ? new Date(date) : new Date();
+
         let options = paginationHandler(page, per_page);
 
         let filter = {};
@@ -206,10 +213,13 @@ const getSlots = async (req, res) => {
         // Add booking information to slots
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
+        // Convert UTC times to user's timezone for display
+        const slotsWithLocalTimes = convertSlotsArrayFromUTC(slotsWithBooking, userTimezone, referenceDate);
+
         return res.status(200).send({
             success: true,
             total,
-            data: slotsWithBooking,
+            data: slotsWithLocalTimes,
         });
 
     } catch (e) {
@@ -229,6 +239,11 @@ const getSlotsByDay = async (req, res) => {
         let { day } = req.params;
         let { service_id, date } = req.query;
 
+        // Get user's timezone (from user profile or request)
+        const user = req.decoded ? await User.findById(req.decoded.id) : null;
+        const userTimezone = getUserTimezone(req, user);
+        const referenceDate = date ? new Date(date) : new Date();
+
         const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         if (!validDays.includes(day.toLowerCase())) {
             throw new Error('Invalid day');
@@ -245,11 +260,14 @@ const getSlotsByDay = async (req, res) => {
         // Add booking information to slots
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
+        // Convert UTC times to user's timezone for display
+        const slotsWithLocalTimes = convertSlotsArrayFromUTC(slotsWithBooking, userTimezone, referenceDate);
+
         return res.status(200).send({
             success: true,
             day: day.toLowerCase(),
-            total: slotsWithBooking.length,
-            data: slotsWithBooking,
+            total: slotsWithLocalTimes.length,
+            data: slotsWithLocalTimes,
         });
 
     } catch (e) {
@@ -319,6 +337,10 @@ const getSlotsByDate = async (req, res) => {
             throw new Error('Date parameter is required');
         }
 
+        // Get user's timezone (from user profile or request)
+        const user = req.decoded ? await User.findById(req.decoded.id) : null;
+        const userTimezone = getUserTimezone(req, user);
+
         // Parse date without timezone conversion
         const [year, month, day] = date.split('-').map(Number);
         const targetDate = new Date(year, month - 1, day);
@@ -341,12 +363,15 @@ const getSlotsByDate = async (req, res) => {
         // Add booking information to slots for this specific date
         const slotsWithBooking = await addBookingInfoToSlots(slots, service_id, date);
 
+        // Convert UTC times to user's timezone for display
+        const slotsWithLocalTimes = convertSlotsArrayFromUTC(slotsWithBooking, userTimezone, targetDate);
+
         return res.status(200).send({
             success: true,
             date: date,
             day: dayOfWeek,
-            total: slotsWithBooking.length,
-            data: slotsWithBooking,
+            total: slotsWithLocalTimes.length,
+            data: slotsWithLocalTimes,
         });
 
     } catch (e) {
@@ -365,6 +390,11 @@ const getSlotById = async (req, res) => {
     try {
         let { id } = req.params;
 
+        // Get user's timezone (from user profile or request)
+        const user = req.decoded ? await User.findById(req.decoded.id) : null;
+        const userTimezone = getUserTimezone(req, user);
+        const referenceDate = new Date();
+
         let slot = await Slot.findById(id)
             .populate({ path: 'created_by', select: 'first_name last_name email' })
             .lean({ virtuals: true });
@@ -373,9 +403,12 @@ const getSlotById = async (req, res) => {
             throw new Error('Slot not found');
         }
 
+        // Convert UTC times to user's timezone for display
+        const slotWithLocalTime = convertSlotTimesFromUTC(slot, userTimezone, referenceDate);
+
         return res.status(200).send({
             success: true,
-            data: slot,
+            data: slotWithLocalTime,
         });
 
     } catch (e) {
