@@ -67,6 +67,11 @@ const userSchema = mongoose.Schema({
     device_ids: [{
         type: String
     }],
+    device_type: {
+        type: String,
+        enum: ['ios', 'android', 'web'],
+        default: null
+    },
     role: {
         type: String,
         enum: ENUM_ROLES,

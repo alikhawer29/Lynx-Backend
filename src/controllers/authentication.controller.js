@@ -14,7 +14,7 @@ const path = require("path");
 const socialLogin = (async (req, res) => {
     try {
 
-        let { access_token, type, source, device_id, timezone } = req.body
+        let { access_token, type, source, device_id, device_type, timezone } = req.body
 
         if (!access_token || !type) {
             throw new Error(ERRORS.REQUIRED_FIELD)
@@ -103,8 +103,22 @@ const socialLogin = (async (req, res) => {
 
         let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
 
+        // Handle device_id and device_type
         if (device_id) {
-            userExist.device_ids = device_id
+            // Initialize device_ids array if it doesn't exist
+            if (!userExist.device_ids) {
+                userExist.device_ids = []
+            }
+
+            // Add device_id to array if it doesn't already exist
+            if (!userExist.device_ids.includes(device_id)) {
+                userExist.device_ids.push(device_id)
+            }
+        }
+
+        // Update device_type if provided
+        if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
+            userExist.device_type = device_type
         }
 
         await userExist.save()
@@ -136,7 +150,7 @@ const socialLogin = (async (req, res) => {
 const login = (async (req, res) => {
     try {
 
-        let { email, password, source, device_id, timezone } = req.body
+        let { email, password, source, device_id, device_type, timezone } = req.body
 
         if (!email || !password) {
             throw new Error(ERRORS.REQUIRED_FIELD)
@@ -191,8 +205,22 @@ const login = (async (req, res) => {
 
         let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
 
+        // Handle device_id and device_type
         if (device_id) {
-            userExist.device_ids = device_id
+            // Initialize device_ids array if it doesn't exist
+            if (!userExist.device_ids) {
+                userExist.device_ids = []
+            }
+
+            // Add device_id to array if it doesn't already exist
+            if (!userExist.device_ids.includes(device_id)) {
+                userExist.device_ids.push(device_id)
+            }
+        }
+
+        // Update device_type if provided
+        if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
+            userExist.device_type = device_type
         }
 
         await userExist.save()
@@ -237,7 +265,7 @@ const login = (async (req, res) => {
 const signup = async (req, res) => {
     try {
         const { body, files } = req;
-        const { email, role } = body;
+        const { email, role, device_id, device_type } = body;
 
         if (!objectValidator(body)) {
             throw new Error(ERRORS.NULL_FIELD);
@@ -350,6 +378,17 @@ const signup = async (req, res) => {
 
             payload.is_verified = false;
             payload.active = false;
+        }
+
+        // ===============================
+        // HANDLE DEVICE INFORMATION
+        // ===============================
+        if (device_id) {
+            payload.device_ids = [device_id]; // Initialize with first device
+        }
+
+        if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
+            payload.device_type = device_type;
         }
 
         // ===============================

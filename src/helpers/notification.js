@@ -18,14 +18,38 @@ const sendNotification = (async (notification, id, savable = true) => {
     }
 
     if (user?.device_ids?.length > 0) {
-        return await admin.messaging().sendEachForMulticast({
+        // Convert all data values to strings for Firebase compatibility
+        const data = notification?.data ?? {}
+        const stringifiedData = {}
+        Object.keys(data).forEach(key => {
+            stringifiedData[key] = String(data[key])
+        })
+
+        const result = await admin.messaging().sendEachForMulticast({
             notification: {
                 title: notification.title,
                 body: notification.body
             },
-            data: notification?.data ?? {},
+            data: stringifiedData,
             tokens: user?.device_ids
         })
+
+        // Log notification results
+        console.log(`📱 Firebase Notification Results for user ${id}:`)
+        console.log(`   Total tokens: ${result.failureCount + result.successCount}`)
+        console.log(`   ✅ Success: ${result.successCount}`)
+        console.log(`   ❌ Failed: ${result.failureCount}`)
+
+        if (result.failureCount > 0) {
+            console.log('   Failed tokens and errors:')
+            result.responses.forEach((response, index) => {
+                if (!response.success) {
+                    console.log(`   Token ${index + 1}: ${user.device_ids[index]} - ${response.error?.message || 'Unknown error'}`)
+                }
+            })
+        }
+
+        return result
     }
 
 })
@@ -52,7 +76,40 @@ const sendBulkNotification = (async (notification, ids = [], savable = true) => 
     }
 
     if (tokens?.length > 0) {
-        return await admin.messaging().sendEachForMulticast({ notification, tokens })
+        // Convert all data values to strings for Firebase compatibility
+        const data = notification?.data ?? {}
+        const stringifiedData = {}
+        Object.keys(data).forEach(key => {
+            stringifiedData[key] = String(data[key])
+        })
+
+        const payload = {
+            notification: {
+                title: notification.title,
+                body: notification.body
+            },
+            data: stringifiedData,
+            tokens
+        }
+
+        const result = await admin.messaging().sendEachForMulticast(payload)
+
+        // Log notification results
+        console.log(`📱 Firebase Bulk Notification Results:`)
+        console.log(`   Total tokens: ${result.failureCount + result.successCount}`)
+        console.log(`   ✅ Success: ${result.successCount}`)
+        console.log(`   ❌ Failed: ${result.failureCount}`)
+
+        if (result.failureCount > 0) {
+            console.log('   Failed tokens and errors:')
+            result.responses.forEach((response, index) => {
+                if (!response.success) {
+                    console.log(`   Token ${index + 1}: ${tokens[index]} - ${response.error?.message || 'Unknown error'}`)
+                }
+            })
+        }
+
+        return result
     }
 
 })
@@ -77,9 +134,17 @@ const sendStatusChangeNotification = async (user, newStatus, adminUser) => {
         }
 
         // Send notification using your existing helper
-        await sendNotification(notification, user._id, true)
+        const result = await sendNotification(notification, user._id, true)
 
-        console.log(`Status change notification sent to user ${user.email}`)
+        // Log result
+        if (result) {
+            console.log(`✅ Status change notification sent to user ${user.email}`)
+            if (result.failureCount > 0) {
+                console.log(`⚠️  ${result.failureCount} out of ${result.failureCount + result.successCount} notifications failed`)
+            }
+        } else {
+            console.log(`ℹ️  No device tokens found for user ${user.email}`)
+        }
 
     } catch (error) {
         console.error('Error sending status change notification:', error)

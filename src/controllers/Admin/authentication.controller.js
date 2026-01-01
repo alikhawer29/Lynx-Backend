@@ -11,7 +11,7 @@ const ResponseHandler = require('../../utils/response')
 
 const login = async (req, res) => {
     try {
-        let { email, password, device_id, timezone } = req.body;
+        let { email, password, device_id, device_type, timezone } = req.body;
 
         if (!email || !password) {
             throw new Error(ERRORS.REQUIRED_FIELD);
@@ -57,8 +57,22 @@ const login = async (req, res) => {
             role: userExist.role
         });
 
+        // Handle device_id and device_type
         if (device_id) {
-            userExist.device_ids = device_id;
+            // Initialize device_ids array if it doesn't exist
+            if (!userExist.device_ids) {
+                userExist.device_ids = []
+            }
+
+            // Add device_id to array if it doesn't already exist
+            if (!userExist.device_ids.includes(device_id)) {
+                userExist.device_ids.push(device_id)
+            }
+        }
+
+        // Update device_type if provided
+        if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
+            userExist.device_type = device_type
         }
 
         await userExist.save();

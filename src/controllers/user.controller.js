@@ -1795,6 +1795,61 @@ const getApprovedProvider = async (req, res) => {
     }
 };
 
+const updateDeviceInfo = async (req, res) => {
+    try {
+        const { decoded, body } = req;
+        const { device_id, device_type } = body;
+
+        if (!device_id) {
+            return res.status(400).send({
+                success: false,
+                message: "device_id is required"
+            });
+        }
+
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).send({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Handle device_id
+        if (!user.device_ids) {
+            user.device_ids = [];
+        }
+
+        // Add device_id to array if it doesn't already exist
+        if (!user.device_ids.includes(device_id)) {
+            user.device_ids.push(device_id);
+        }
+
+        // Update device_type if provided and valid
+        if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
+            user.device_type = device_type;
+        }
+
+        await user.save();
+
+        return res.status(200).send({
+            success: true,
+            message: "Device information updated successfully",
+            data: {
+                device_ids: user.device_ids,
+                device_type: user.device_type
+            }
+        });
+
+    } catch (e) {
+        console.log("Error Message :: ", e);
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        });
+    }
+};
+
 module.exports = {
     completeProfile,
     getUser,
@@ -1820,5 +1875,6 @@ module.exports = {
     getProviderServices,
     cancelBookingByProvider,
     getProviderApprovedAppointments,
-    getApprovedProvider
+    getApprovedProvider,
+    updateDeviceInfo
 }

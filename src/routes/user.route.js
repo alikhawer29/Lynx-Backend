@@ -58,4 +58,6 @@ router.get('/provider/approved', AuthVerifier, RestrictAccess([ROLES.PROVIDER]),
 
 router.post('/logout', AuthVerifier, userController.logout)
 
+router.put('/update-device', AuthVerifier, userController.updateDeviceInfo)
+
 module.exports = router
