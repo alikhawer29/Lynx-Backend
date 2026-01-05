@@ -149,10 +149,29 @@ const deleteCategory = (async (req, res) => {
     }
 })
 
+const getAllActiveCategories = (async (req, res) => {
+    try {
+        let categories = await Category.find({ active: true }).sort({ name: 1 })
+
+        return res.status(200).send({
+            success: true,
+            data: categories
+        })
+
+    } catch (e) {
+        console.log("Error Message :: ", e)
+        return res.status(400).send({
+            success: false,
+            message: e.message
+        })
+    }
+})
+
 module.exports = {
     createCategory,
     getCategory,
     getCategoryById,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    getAllActiveCategories
 }

@@ -72,8 +72,16 @@ const getService = (async (req, res) => {
             sort = { [sortBy]: 1 }
         }
 
-        if (categories && categories.split(",").length > 0) {
-            filter.category = { $in: categories.split(",").map(item => new mongoose.Types.ObjectId(item)) }
+        if (categories) {
+            let categoryIds = [];
+            if (Array.isArray(categories)) {
+                categoryIds = categories;
+            } else if (typeof categories === 'string') {
+                categoryIds = categories.split(',');
+            }
+            if (categoryIds.length > 0) {
+                filter.category = { $in: categoryIds.map(item => new mongoose.Types.ObjectId(item)) };
+            }
         }
 
         let pipeline = [
@@ -354,8 +362,16 @@ const getServices = (async (req, res) => {
             sort = { [sortBy]: 1 }
         }
 
-        if (categories && categories.split(",").length > 0) {
-            filter.category = { $in: categories.split(",").map(item => new mongoose.Types.ObjectId(item)) }
+        if (categories) {
+            let categoryIds = [];
+            if (Array.isArray(categories)) {
+                categoryIds = categories;
+            } else if (typeof categories === 'string') {
+                categoryIds = categories.split(',');
+            }
+            if (categoryIds.length > 0) {
+                filter.category = { $in: categoryIds.map(item => new mongoose.Types.ObjectId(item)) };
+            }
         }
 
         let pipeline = [
