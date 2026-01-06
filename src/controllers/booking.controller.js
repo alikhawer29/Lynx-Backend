@@ -141,6 +141,22 @@ const getBookings = async (req, res) => {
         let filter = {}; // ✅ Always get only paid bookings
         let sort = { createdAt: -1 };
 
+        // Role-based filtering: Users see only their bookings, Providers see only their assigned bookings
+        if (decoded && decoded.id && decoded.role) {
+            if (decoded.role === ROLES.USER) {
+                // User can only see their own bookings
+                filter.user_id = mongoose.Types.ObjectId.isValid(decoded.id)
+                    ? new mongoose.Types.ObjectId(decoded.id)
+                    : decoded.id;
+            } else if (decoded.role === ROLES.PROVIDER) {
+                // Provider can only see bookings assigned to them
+                filter.provider_id = mongoose.Types.ObjectId.isValid(decoded.id)
+                    ? new mongoose.Types.ObjectId(decoded.id)
+                    : decoded.id;
+            }
+            // Admin can see all bookings (no filter applied)
+        }
+
         // Filtering
         if (search) {
             filter = {
