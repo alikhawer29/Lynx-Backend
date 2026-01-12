@@ -241,7 +241,7 @@ const getBookingById = async (req, res) => {
         const booking = await Booking.findById(id)
             .populate([
                 { path: "user_id", select: "first_name last_name email picture certifications" },
-                { path: "service_id", select: "name price image" },
+                { path: "service_id", select: "name price image service_type" },
                 { path: "category_id", select: "name" },
                 { path: "provider_id", select: "first_name last_name email picture certifications dialing_code phone provider_lat provider_lng provider_address" },
                 { path: "slot_id", select: "start_time end_time" },

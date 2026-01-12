@@ -1095,6 +1095,7 @@ const getProviderServices = async (req, res) => {
                     duration: service.duration,
                     status: service.status,
                     category: service.category,
+                    service_type: service.service_type,
                     // image: service.image,
                     image_url: service.image_url,
                     rating: {
