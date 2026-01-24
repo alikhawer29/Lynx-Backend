@@ -9,6 +9,8 @@ const upload = require('../../middlewares/upload.middleware')
 
 router.get('/', OptionalAuthVerifier, serviceController.getService)
 
+router.get('/categories', serviceController.getActiveCategories)
+
 router.get('/appointments', AuthVerifier, RestrictAccess([ROLES.ADMIN]), serviceController.getServiceAppointments)
 
 router.get('/:id', OptionalAuthVerifier, serviceController.getServiceById)

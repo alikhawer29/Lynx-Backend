@@ -4,6 +4,7 @@ const Service = require('../../models/service.model')
 const Booking = require('../../models/booking.model')
 const Review = require('../../models/user.model')
 const User = require('../../models/user.model')
+const Category = require('../../models/category.model')
 const { ERRORS, objectValidator, paginationHandler, getSearchQuery, getDateRangeQuery, ROLES, normalize, paginateResponse } = require('../../utils')
 const response = require('../../utils/response')
 const ResponseHandler = require('../../utils/response')
@@ -42,7 +43,7 @@ const createService = (async (req, res) => {
 const getService = async (req, res) => {
     try {
         let { decoded, query } = req;
-        let { page = 1, per_page = 10, search, from, to, sortBy, categories, provider_id } = query;
+        let { page = 1, per_page = 10, search, from, to, sortBy, categories, provider_id, active } = query;
 
         page = parseInt(page);
         per_page = parseInt(per_page);
@@ -52,6 +53,10 @@ const getService = async (req, res) => {
         let filter = {};
         let sort = { createdAt: -1 };
         let projection = { reviews: 0, user_favorite: 0 };
+
+        if (req.query.hasOwnProperty("active")) {
+            filter.active = active === 'true' || active === '1';
+        }
 
         if (search) filter.name = getSearchQuery(search);
         if (from || to) filter.createdAt = getDateRangeQuery(from, to);
@@ -422,6 +427,22 @@ const getServiceAppointments = async (req, res) => {
     }
 }
 
+const getActiveCategories = async (req, res) => {
+    try {
+        // Get all active categories
+        const categories = await Category.find({ active: true })
+            .select('_id name')
+            .sort({ name: 1 })
+            .lean();
+
+        return ResponseHandler.success(res, "Active categories retrieved successfully", categories);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+};
+
 module.exports = {
     createService,
     getService,
@@ -431,4 +452,5 @@ module.exports = {
     handleFavorite,
     toggleServiceStatus,
     getServiceAppointments,
+    getActiveCategories,
 }

@@ -56,6 +56,8 @@ router.put('/handle-favorite/:id', AuthVerifier, userController.handleFavoriteSe
 
 router.get('/favorites', AuthVerifier, userController.getFavoriteServices)
 
+router.get('/analytics', AuthVerifier, RestrictAccess([ROLES.ADMIN]), userController.getAnalytics)
+
 router.post('/logout', AuthVerifier, userController.logout)
 
 module.exports = router

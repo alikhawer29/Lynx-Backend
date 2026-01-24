@@ -402,29 +402,15 @@ const getUnassignedServices = async (req, res) => {
             .select('_id name')
             .lean();
 
-        // Get all service IDs that are assigned to at least one provider
-        const providers = await User.find({
-            role: ROLES.PROVIDER,
-            provider_services: { $exists: true, $ne: [] }
-        }).select('provider_services');
+        const services = allServices.map(service => {
 
-        // Collect all assigned service IDs
-        const assignedServiceIds = new Set();
-        providers.forEach(provider => {
-            provider.provider_services.forEach(serviceId => {
-                assignedServiceIds.add(serviceId.toString());
-            });
+            return {
+                id: service._id,
+                name: service.name,
+            };
         });
 
-        // Filter out services that are assigned to any provider
-        const unassignedServices = allServices
-            .filter(service => !assignedServiceIds.has(service._id.toString()))
-            .map(service => ({
-                id: service._id,
-                name: service.name
-            }));
-
-        return ResponseHandler.success(res, "Unassigned Services", unassignedServices);
+        return ResponseHandler.success(res, "Unassigned Services", services);
 
     } catch (e) {
         console.log('Error Message :: ', e);
@@ -1148,6 +1134,383 @@ const getUpgradeRequestDetails = async (req, res) => {
     }
 };
 
+const getAnalytics = async (req, res) => {
+    try {
+        const { period = 'monthly', year, type } = req.query;
+        const currentYear = year ? parseInt(year) : new Date().getFullYear();
+
+        // Helper function to get date range based on period
+        const getDateRange = (period, year, periodIndex = null) => {
+            const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+            const endDate = new Date(`${year + 1}-01-01T00:00:00.000Z`);
+
+            if (period === 'quarterly' && periodIndex !== null) {
+                const quarterStart = (periodIndex - 1) * 3;
+                startDate.setMonth(quarterStart);
+                endDate.setFullYear(year);
+                endDate.setMonth(quarterStart + 3);
+            } else if (period === 'monthly' && periodIndex !== null) {
+                startDate.setMonth(periodIndex - 1);
+                endDate.setFullYear(year);
+                endDate.setMonth(periodIndex);
+            }
+
+            return { startDate, endDate };
+        };
+
+        // Helper function to format period labels
+        const getPeriodLabels = (period) => {
+            if (period === 'monthly') {
+                // Show all days of the current month
+                const currentMonth = new Date().getMonth();
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                return Array.from({ length: daysInMonth }, (_, i) => {
+                    const day = i + 1;
+                    const date = new Date(currentYear, currentMonth, day);
+                    return {
+                        label: `${day.toString().padStart(2, '0')} ${date.toLocaleString('default', { month: 'short' })}`,
+                        value: day
+                    };
+                });
+            } else if (period === 'quarterly') {
+                return [
+                    { label: 'Jan-Mar', value: 1 },
+                    { label: 'Apr-Jun', value: 2 },
+                    { label: 'Jul-Sep', value: 3 },
+                    { label: 'Oct-Dec', value: 4 }
+                ];
+            } else {
+                // Show all 12 months for yearly
+                return Array.from({ length: 12 }, (_, i) => ({
+                    label: new Date(currentYear, i).toLocaleString('default', { month: 'short' }),
+                    value: i + 1
+                }));
+            }
+        };
+
+        const periodLabels = getPeriodLabels(period);
+
+        // Helper function to format data for charts
+        const formatChartData = (data, labels, type = 'count') => {
+            return labels.map(label => {
+                const item = data.find(d => d._id === label.value);
+                return {
+                    period: label.label,
+                    [type]: item ? (type === 'amount' ? item.totalAmount : item.count) : 0
+                };
+            });
+        };
+
+        // Helper function to get analytics data for specific type
+        const getAnalyticsData = async (dataPeriod, dataYear) => {
+            const dataPeriodLabels = getPeriodLabels(dataPeriod);
+            const dataCurrentYear = dataYear ? parseInt(dataYear) : currentYear;
+
+            let result = {};
+
+            // Only calculate the requested type if specified, otherwise calculate all
+            if (!type || type === 'earnings') {
+                let earningsMatch = {
+                    payment_status: "succeeded",
+                    deleted: false
+                };
+
+                if (dataPeriod === 'monthly') {
+                    // For monthly period, show current month data only
+                    const currentMonth = new Date().getMonth();
+                    earningsMatch.createdAt = {
+                        $gte: new Date(dataCurrentYear, currentMonth, 1),
+                        $lt: new Date(dataCurrentYear, currentMonth + 1, 1)
+                    };
+                } else {
+                    // For quarterly and yearly, show full year data
+                    earningsMatch.createdAt = {
+                        $gte: new Date(`${dataCurrentYear}-01-01T00:00:00.000Z`),
+                        $lt: new Date(`${dataCurrentYear + 1}-01-01T00:00:00.000Z`)
+                    };
+                }
+
+                const earningsData = await Payment.aggregate([
+                    {
+                        $match: earningsMatch
+                    },
+                    {
+                        $group: {
+                            _id: dataPeriod === 'monthly' ? { $dayOfMonth: "$createdAt" } :
+                                dataPeriod === 'quarterly' ? {
+                                    $add: [
+                                        1,
+                                        {
+                                            $floor: {
+                                                $divide: [
+                                                    { $subtract: [{ $month: "$createdAt" }, 1] },
+                                                    3
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                } :
+                                    { $month: "$createdAt" },
+                            totalAmount: { $sum: "$amount" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { _id: 1 } }
+                ]);
+
+                const earnings = formatChartData(earningsData, dataPeriodLabels, 'amount');
+                const totalEarnings = earnings.reduce((sum, item) => sum + item.amount, 0);
+
+                result.earnings = {
+                    data: earnings,
+                    total: totalEarnings,
+                    title: 'Total Earnings',
+                    yAxisLabel: 'Amount ($)'
+                };
+            }
+
+            if (!type || type === 'bookings') {
+                let bookingsMatch = {
+                    deleted: false
+                };
+
+                if (dataPeriod === 'monthly') {
+                    const currentMonth = new Date().getMonth();
+                    bookingsMatch.createdAt = {
+                        $gte: new Date(dataCurrentYear, currentMonth, 1),
+                        $lt: new Date(dataCurrentYear, currentMonth + 1, 1)
+                    };
+                } else {
+                    bookingsMatch.createdAt = {
+                        $gte: new Date(`${dataCurrentYear}-01-01T00:00:00.000Z`),
+                        $lt: new Date(`${dataCurrentYear + 1}-01-01T00:00:00.000Z`)
+                    };
+                }
+
+                const bookingsData = await Booking.aggregate([
+                    {
+                        $match: bookingsMatch
+                    },
+                    {
+                        $group: {
+                            _id: dataPeriod === 'monthly' ? { $dayOfMonth: "$createdAt" } :
+                                dataPeriod === 'quarterly' ? {
+                                    $add: [
+                                        1,
+                                        {
+                                            $floor: {
+                                                $divide: [
+                                                    { $subtract: [{ $month: "$createdAt" }, 1] },
+                                                    3
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                } :
+                                    { $month: "$createdAt" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { _id: 1 } }
+                ]);
+
+                const bookings = formatChartData(bookingsData, dataPeriodLabels, 'count');
+                const totalBookings = bookings.reduce((sum, item) => sum + item.count, 0);
+
+                result.bookings = {
+                    data: bookings,
+                    total: totalBookings,
+                    title: 'New Bookings',
+                    yAxisLabel: 'Count'
+                };
+            }
+
+            if (!type || type === 'users') {
+                let usersMatch = {
+                    role: ROLES.USER
+                };
+
+                if (dataPeriod === 'monthly') {
+                    const currentMonth = new Date().getMonth();
+                    usersMatch.createdAt = {
+                        $gte: new Date(dataCurrentYear, currentMonth, 1),
+                        $lt: new Date(dataCurrentYear, currentMonth + 1, 1)
+                    };
+                } else {
+                    usersMatch.createdAt = {
+                        $gte: new Date(`${dataCurrentYear}-01-01T00:00:00.000Z`),
+                        $lt: new Date(`${dataCurrentYear + 1}-01-01T00:00:00.000Z`)
+                    };
+                }
+
+                const usersData = await User.aggregate([
+                    {
+                        $match: usersMatch
+                    },
+                    {
+                        $group: {
+                            _id: dataPeriod === 'monthly' ? { $dayOfMonth: "$createdAt" } :
+                                dataPeriod === 'quarterly' ? {
+                                    $add: [
+                                        1,
+                                        {
+                                            $floor: {
+                                                $divide: [
+                                                    { $subtract: [{ $month: "$createdAt" }, 1] },
+                                                    3
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                } :
+                                    { $month: "$createdAt" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { _id: 1 } }
+                ]);
+
+                const users = formatChartData(usersData, dataPeriodLabels, 'count');
+                const totalUsers = users.reduce((sum, item) => sum + item.count, 0);
+
+                result.users = {
+                    data: users,
+                    total: totalUsers,
+                    title: 'New Users Registered',
+                    yAxisLabel: 'Count'
+                };
+            }
+
+            if (!type || type === 'providers') {
+                let providersMatch = {
+                    role: ROLES.PROVIDER
+                };
+
+                if (dataPeriod === 'monthly') {
+                    const currentMonth = new Date().getMonth();
+                    providersMatch.createdAt = {
+                        $gte: new Date(dataCurrentYear, currentMonth, 1),
+                        $lt: new Date(dataCurrentYear, currentMonth + 1, 1)
+                    };
+                } else {
+                    providersMatch.createdAt = {
+                        $gte: new Date(`${dataCurrentYear}-01-01T00:00:00.000Z`),
+                        $lt: new Date(`${dataCurrentYear + 1}-01-01T00:00:00.000Z`)
+                    };
+                }
+
+                const providersData = await User.aggregate([
+                    {
+                        $match: providersMatch
+                    },
+                    {
+                        $group: {
+                            _id: dataPeriod === 'monthly' ? { $dayOfMonth: "$createdAt" } :
+                                dataPeriod === 'quarterly' ? {
+                                    $add: [
+                                        1,
+                                        {
+                                            $floor: {
+                                                $divide: [
+                                                    { $subtract: [{ $month: "$createdAt" }, 1] },
+                                                    3
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                } :
+                                    { $month: "$createdAt" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { _id: 1 } }
+                ]);
+
+                const providers = formatChartData(providersData, dataPeriodLabels, 'count');
+                const totalProviders = providers.reduce((sum, item) => sum + item.count, 0);
+
+                result.providers = {
+                    data: providers,
+                    total: totalProviders,
+                    title: 'New Service Providers Registered',
+                    yAxisLabel: 'Count'
+                };
+            }
+
+            return result;
+        };
+
+        // Get available years for filter
+        const availableYears = await Payment.aggregate([
+            {
+                $match: {
+                    payment_status: "succeeded",
+                    deleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: { $year: "$createdAt" }
+                }
+            },
+            {
+                $sort: { _id: -1 }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    year: "$_id"
+                }
+            }
+        ]);
+
+        // Get analytics data
+        const chartsData = await getAnalyticsData(period, year);
+
+        // Build response based on type parameter
+        let analyticsData;
+
+        if (type) {
+            // Return only the requested chart type
+            analyticsData = {
+                chart: chartsData[type],
+                filters: {
+                    period,
+                    year: currentYear,
+                    availableYears: availableYears.map(item => item.year)
+                }
+            };
+        } else {
+            // Return all charts and summary
+            const totalEarnings = chartsData.earnings?.total || 0;
+            const totalBookings = chartsData.bookings?.total || 0;
+            const totalUsers = chartsData.users?.total || 0;
+            const totalProviders = chartsData.providers?.total || 0;
+
+            analyticsData = {
+                summary: {
+                    totalEarnings,
+                    totalBookings,
+                    totalUsers,
+                    totalProviders
+                },
+                charts: chartsData,
+                filters: {
+                    period,
+                    year: currentYear,
+                    availableYears: availableYears.map(item => item.year)
+                }
+            };
+        }
+
+        return ResponseHandler.success(res, "Analytics data retrieved successfully", analyticsData);
+
+    } catch (error) {
+        console.error("Error Message :: ", error);
+        return ResponseHandler.error(res, error.message, 400);
+    }
+};
+
 module.exports = {
     getMyProfile,
     updateUser,
@@ -1171,4 +1534,5 @@ module.exports = {
     logout,
     getUpgradeRequests,
     getUpgradeRequestDetails,
+    getAnalytics
 }
