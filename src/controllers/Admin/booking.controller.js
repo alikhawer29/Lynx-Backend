@@ -799,7 +799,7 @@ const getProviders = async (req, res) => {
         const { query } = req;
         const { booking_category, search } = query;
 
-        let filter = { role: 'provider' };
+        let filter = { role: 'provider', active: true };
 
         // Filter by booking_category (normal or premium)
         if (booking_category) {

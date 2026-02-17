@@ -51,7 +51,11 @@ const getService = (async (req, res) => {
 
         let options = paginationHandler(page, per_page)
 
-        let filter = {}
+        // Only return active, non-deleted services
+        let filter = {
+            active: true,
+            deleted: { $ne: true }
+        }
         let sort = {
             createdAt: -1
         }

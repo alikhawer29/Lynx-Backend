@@ -179,6 +179,9 @@ const login = (async (req, res) => {
 
         let activeUser = userExist.active
 
+        if (userExist.role === ROLES.PROVIDER && !userExist.is_verified && userExist.reject_reason) {
+            throw new Error("Your profile is rejected by admin");
+        }
 
         if (userExist.role === ROLES.PROVIDER && !userExist.is_verified) {
             throw new Error("Your profile is pending admin approval");

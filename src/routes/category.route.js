@@ -9,7 +9,7 @@ router.post('/create', AuthVerifier, RestrictAccess([ROLES.ADMIN]), categoryCont
 
 router.get('/get', AuthVerifier, categoryController.getCategory)
 
-router.get('/get-all-active', AuthVerifier, categoryController.getAllActiveCategories)
+router.get('/get-all-active', categoryController.getAllActiveCategories)
 
 router.get('/get/:id', AuthVerifier, categoryController.getCategoryById)
 
