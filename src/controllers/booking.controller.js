@@ -135,7 +135,9 @@ const getBookings = async (req, res) => {
 
         const options = paginationHandler(page, per_page);
         // Always get only paid bookings
-        let filter = { payment_status: 'paid' };
+        let filter = {
+            payment_status: { $in: ['paid', 'refunded'] }
+        };
         let sort = { createdAt: -1 };
 
         // Role-based filtering: Users see only their bookings, Providers see only their assigned bookings

@@ -36,7 +36,9 @@ const getBookings = async (req, res) => {
         const { page, per_page, search, from, to, sortBy, status, booking_status, is_requested } = query;
 
         const options = paginationHandler(page, per_page);
-        let filter = { payment_status: 'paid' };
+        let filter = {
+            payment_status: { $in: ['paid', 'refunded'] }
+        };
         let sort = { session_date: -1, session_time: -1 };
         // Status filter - always apply if provided
         if (status) {
