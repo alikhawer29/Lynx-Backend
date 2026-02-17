@@ -102,14 +102,11 @@ const createBooking = async (req, res) => {
         const booking = new Booking(payload);
         await booking.save();
 
-        // Populate for notifications
+        // Optionally populate for response (no notifications here; they are sent after payment success)
         await booking.populate([
             { path: 'user_id', select: 'first_name last_name email' },
             { path: 'service_id', select: 'name price' },
         ]);
-
-        // Send notifications
-        sendBookingCreatedNotifications(booking);
 
         return res.status(200).send({
             success: true,
@@ -137,8 +134,8 @@ const getBookings = async (req, res) => {
         const { page, per_page, search, from, to, sortBy, status, booking_status } = query;
 
         const options = paginationHandler(page, per_page);
-        // let filter = {payment_status: 'paid'};
-        let filter = {}; // ✅ Always get only paid bookings
+        // Always get only paid bookings
+        let filter = { payment_status: 'paid' };
         let sort = { createdAt: -1 };
 
         // Role-based filtering: Users see only their bookings, Providers see only their assigned bookings

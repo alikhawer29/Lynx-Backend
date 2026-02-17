@@ -3,7 +3,7 @@ const User = require('../models/user.model')
 const Otp = require('../models/otp.model')
 const Conversation = require('../models/conversation.model')
 const { comparePassword } = require('../helpers/encryption')
-const { generateToken } = require('../helpers/token')
+const { generateToken, addToBlacklist } = require('../helpers/token')
 const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendMail } = require("../helpers/email")
@@ -547,11 +547,51 @@ const resetPassword = (async (req, res) => {
     }
 })
 
+// ============================
+// Logout (User / Provider)
+// ============================
+const logout = async (req, res) => {
+    try {
+        const { decoded } = req;
+        const { device_id } = req.body || {};
+
+        // Get the token from Authorization header and blacklist it so it can't be used again
+        const authHeader = req.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            if (token) {
+                addToBlacklist(token);
+            }
+        }
+
+        if (decoded && decoded.id) {
+            // Optionally remove device_id from user's device list (e.g. for push notifications)
+            if (device_id) {
+                await User.findByIdAndUpdate(decoded.id, {
+                    $pull: { device_ids: device_id },
+                });
+            }
+        }
+
+        return res.status(200).send({
+            success: true,
+            message: 'Logged out successfully',
+        });
+    } catch (e) {
+        console.log('Error Message :: ', e);
+        return res.status(400).send({
+            success: false,
+            message: e.message,
+        });
+    }
+};
+
 module.exports = {
     login,
     socialLogin,
     signup,
     forgetPassword,
     verifyOtp,
-    resetPassword
-}
+    resetPassword,
+    logout,
+};

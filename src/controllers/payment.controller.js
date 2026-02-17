@@ -2,6 +2,7 @@ const dotenv = require('dotenv');
 const Payment = require('../models/payment.model');
 const Booking = require('../models/booking.model');
 const { createPaymentIntent } = require('../helpers/stripe');
+const { sendBookingCreatedNotifications } = require('../helpers/bookingNotification');
 
 dotenv.config();
 
@@ -178,14 +179,25 @@ const updatePaymentStatus = async (req, res) => {
 
         await payment.save();
 
-        // Update booking payment status if payment succeeded
+        // Update booking payment status and send notifications if payment succeeded
         if (payment_status === 'succeeded') {
-            const booking = await Booking.findById(payment.booking_id);
+            const booking = await Booking.findById(payment.booking_id)
+                .populate([
+                    { path: 'user_id', select: 'first_name last_name email' },
+                    { path: 'service_id', select: 'name price' },
+                ]);
+
             if (booking) {
-                booking.payment_status = 'paid';
-                // Status remains 'pending' until admin assigns provider
-                // booking_status and status will be updated when provider is assigned
-                await booking.save();
+                // Only transition and notify if not already marked as paid
+                if (booking.payment_status !== 'paid') {
+                    booking.payment_status = 'paid';
+                    // Status remains 'pending' until admin assigns provider
+                    // booking_status and status will be updated when provider is assigned
+                    await booking.save();
+
+                    // Send booking created / confirmed notifications after successful payment
+                    sendBookingCreatedNotifications(booking);
+                }
             }
         }
 

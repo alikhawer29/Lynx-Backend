@@ -36,9 +36,8 @@ const getBookings = async (req, res) => {
         const { page, per_page, search, from, to, sortBy, status, booking_status, is_requested } = query;
 
         const options = paginationHandler(page, per_page);
-        let filter = {};
-        let sort = { createdAt: -1 };
-
+        let filter = { payment_status: 'paid' };
+        let sort = { session_date: -1, session_time: -1 };
         // Status filter - always apply if provided
         if (status) {
             filter.status = status;
@@ -758,7 +757,9 @@ const rescheduleBooking = async (req, res) => {
         const originalDate = booking.session_date;
         const originalTime = booking.session_time;
 
-        // Update booking with proposed reschedule details (keep status as approved)
+        // Update booking with proposed reschedule details
+        // Change main status to 'requested' so it clearly reflects reschedule state
+        booking.status = 'requested';
         booking.reschedule_requested = true;
         booking.proposed_session_date = new Date(proposed_session_date);
         booking.proposed_session_time = proposed_session_time;

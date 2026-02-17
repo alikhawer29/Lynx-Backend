@@ -19,10 +19,14 @@ module.exports = {
             }
 
             req.decoded = decoded
+            req.token = token
             next()
         } catch (e) {
             console.error('AuthVerifier error:', e)
-            return res.status(500).send({ message: 'Failed to authenticate token.' })
+            const isRevoked = e.message && e.message.includes('revoked')
+            return res.status(isRevoked ? 401 : 500).send({
+                message: isRevoked ? 'Token has been revoked. Please log in again.' : 'Failed to authenticate token.'
+            })
         }
     },
     OptionalAuthVerifier: async (req, res, next) => {
