@@ -182,6 +182,9 @@ const getUser = async (req, res) => {
         // Role filter - default to 'user' if not specified
         filter.role = role && role !== 'undefined' ? role : 'user';
 
+        // Flag: are we looking at provider new-requests view?
+        const isProviderNewRequests = filter.role === ROLES.PROVIDER && new_requests === 'true';
+
         // Search filter
         if (search) {
             filter.$or = [
@@ -192,7 +195,11 @@ const getUser = async (req, res) => {
         }
 
         // Status filter
-        if (status) {
+        // For provider new_requests view, we don't apply DB status filter when status is one of the derived states
+        const derivedStatuses = ['pending', 'rejected', 'scheduled'];
+        const isDerivedStatusFilter = status && derivedStatuses.includes(status);
+
+        if (status && !(isProviderNewRequests && isDerivedStatusFilter)) {
             if (status === GENERAL_STATUS.PENDING) {
                 filter = {
                     ...filter,
@@ -248,27 +255,33 @@ const getUser = async (req, res) => {
 
         // If new_requests is provided, ensure interview field is present (even if null)
         if (new_requests === 'true') {
+            // Map to include derived status based on reject_reason and interview.status
             users = users.map(user => {
-                let status = 'pending'; // default status
+                let derivedStatus = 'pending'; // default status
 
                 // Check for reject_reason first (highest priority)
                 if (user.reject_reason) {
-                    status = 'rejected';
+                    derivedStatus = 'rejected';
                 } else if (user.interview && user.interview.status === 'scheduled') {
-                    status = 'scheduled';
+                    derivedStatus = 'scheduled';
                 } else {
-                    status = 'pending';
+                    derivedStatus = 'pending';
                 }
 
                 return {
                     ...user,
-                    status: status,
+                    status: derivedStatus,
                     interview: {
                         ...user.interview,
                         status: user.interview?.status ?? 'pending'
                     }
                 };
             });
+
+            // Apply derived status filter for provider new-requests view
+            if (isProviderNewRequests && isDerivedStatusFilter) {
+                users = users.filter(user => user.status === status);
+            }
         }
 
         let total = await User.countDocuments(filter);
@@ -1028,8 +1041,7 @@ const getUpgradeRequests = async (req, res) => {
 
         let filter = {
             role: ROLES.PROVIDER,
-            upgrade_request: { $exists: true, $ne: null },
-            "upgrade_request.status": { $ne: "approved" }
+            upgrade_request: { $exists: true, $ne: null }
         };
         let sort = { createdAt: -1 };
 
@@ -1040,6 +1052,15 @@ const getUpgradeRequests = async (req, res) => {
                 { last_name: getSearchQuery(search) },
                 { email: getSearchQuery(search) }
             ];
+        }
+
+        // Status filter for upgrade_request.status
+        if (status) {
+            // Allow filtering by specific upgrade_request.status (e.g., 'pending', 'rejected', 'approved')
+            filter["upgrade_request.status"] = status;
+        } else {
+            // By default, exclude already approved upgrade requests
+            filter["upgrade_request.status"] = { $ne: "approved" };
         }
 
         // Date range filter
@@ -1060,7 +1081,8 @@ const getUpgradeRequests = async (req, res) => {
                     first_name: 1,
                     last_name: 1,
                     createdAt: 1,
-                    status: "$upgrade_request.status", // Correctly reference the field
+                    // Always expose a status: use upgrade_request.status when present, otherwise 'pending'
+                    status: { $ifNull: ["$upgrade_request.status", "pending"] },
                 }
             },
             { $sort: sort },
@@ -1096,8 +1118,7 @@ const getUpgradeRequestDetails = async (req, res) => {
         const user = await User.findOne({
             _id: id,
             role: ROLES.PROVIDER,
-            upgrade_request: { $exists: true, $ne: null },
-            "upgrade_request.status": { $ne: "approved" }
+            upgrade_request: { $exists: true, $ne: null }
         })
             .select('-password')
             .lean({ virtuals: true });
@@ -1109,20 +1130,24 @@ const getUpgradeRequestDetails = async (req, res) => {
         // Create a clean response object with all URLs
         const response = {
             ...user,
+            // Expose upgrade_request.status as top-level status (default to 'pending' when not set)
+            status: user.upgrade_request?.status || 'pending',
             image_url: user.image_url || null,
             resume_url: user.resume_url || null,
             certifications_with_urls: user.certifications_with_urls || [],
             // Add URLs for upgrade request files
             upgrade_request: {
                 ...user.upgrade_request,
-                certificate_url: user.upgrade_request?.certificate ?
-                    (user.upgrade_request.certificate.startsWith('http') ?
-                        user.upgrade_request.certificate :
-                        `${process.env.BASE_URL}${user.upgrade_request.certificate}`) : null,
-                license_url: user.upgrade_request?.license ?
-                    (user.upgrade_request.license.startsWith('http') ?
-                        user.upgrade_request.license :
-                        `${process.env.BASE_URL}${user.upgrade_request.license}`) : null
+                certificate_url: user.upgrade_request?.certificate
+                    ? (user.upgrade_request.certificate.startsWith('http')
+                        ? user.upgrade_request.certificate
+                        : `${process.env.BASE_URL}${user.upgrade_request.certificate}`)
+                    : null,
+                license_url: user.upgrade_request?.license
+                    ? (user.upgrade_request.license.startsWith('http')
+                        ? user.upgrade_request.license
+                        : `${process.env.BASE_URL}${user.upgrade_request.license}`)
+                    : null
             }
         };
 

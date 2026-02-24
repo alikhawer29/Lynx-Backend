@@ -23,7 +23,7 @@ const {
     sendRescheduleResponseNotifications,
 } = require('../helpers/bookingNotification');
 const ResponseHandler = require('../utils/response');
-const { getUserTimezone, convertTimeToUTC } = require('../helpers/timezone');
+const { getUserTimezone, convertTimeToUTC, convertTimeFromUTC } = require('../helpers/timezone');
 
 dotenv.config();
 
@@ -237,18 +237,33 @@ const getBookingById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const booking = await Booking.findById(id)
+        const bookingDoc = await Booking.findById(id)
             .populate([
-                { path: "user_id", select: "first_name last_name email picture certifications" },
+                { path: "user_id", select: "first_name last_name email picture certifications timezone" },
                 { path: "service_id", select: "name price image service_type" },
                 { path: "category_id", select: "name" },
                 { path: "provider_id", select: "first_name last_name email picture certifications dialing_code phone provider_lat provider_lng provider_address" },
                 { path: "slot_id", select: "start_time end_time" },
-            ])
-            .lean({ virtuals: true });
+            ]);
 
-        if (!booking) {
+        if (!bookingDoc) {
             throw new Error(ERRORS.NOT_FOUND);
+        }
+
+        // Convert to plain object with virtuals
+        const booking = bookingDoc.toObject({ virtuals: true });
+
+        // Convert session_time from UTC to user's timezone for response
+        try {
+            const userForTz = booking.user_id || null;
+            const userTimezone = getUserTimezone(req, userForTz);
+
+            if (booking.session_date && booking.session_time) {
+                const sessionDate = new Date(booking.session_date);
+                booking.session_time = convertTimeFromUTC(booking.session_time, userTimezone, sessionDate);
+            }
+        } catch (e) {
+            console.log("Error converting session_time to user timezone:", e.message);
         }
 
         // Get reviews for this booking with user details

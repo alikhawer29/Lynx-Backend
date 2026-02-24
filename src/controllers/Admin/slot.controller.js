@@ -406,7 +406,9 @@ const updateSlot = async (req, res) => {
 
         // 🔁 Loop through all days
         for (const [day, times] of Object.entries(slots)) {
-            if (!validDays.includes(day.toLowerCase())) {
+            const dayLower = day.toLowerCase();
+
+            if (!validDays.includes(dayLower)) {
                 errors.push({ day, error: `Invalid day: ${day}` });
                 continue;
             }
@@ -415,10 +417,19 @@ const updateSlot = async (req, res) => {
             const timeArray = Array.isArray(times) ? times : [times];
 
             try {
-                // 🗑️ Delete all existing slots for this day first
-                await Slot.deleteMany({ day: day.toLowerCase() });
+                // Fetch existing slots for this day (including booked ones)
+                const existingSlots = await Slot.find({ day: dayLower });
 
-                // 🆕 Create new slots for this day
+                // Map existing slots by time range key: "start-end"
+                const existingByKey = new Map();
+                existingSlots.forEach(slot => {
+                    const key = `${slot.start_time}-${slot.end_time}`;
+                    existingByKey.set(key, slot);
+                });
+
+                const newKeys = new Set();
+
+                // 🆕 Create or update slots for this day based on provided times
                 for (const time of timeArray) {
                     const { start_time, end_time, is_active } = time;
 
@@ -439,14 +450,42 @@ const updateSlot = async (req, res) => {
                         referenceDate
                     );
 
-                    const newSlot = await Slot.create({
-                        day: day.toLowerCase(),
-                        start_time: timeSlotUTC.start_time,
-                        end_time: timeSlotUTC.end_time,
-                        is_active: typeof is_active !== 'undefined' ? is_active : true,
-                        created_by: decoded.id,
-                    });
-                    updatedSlots.push(newSlot);
+                    const key = `${timeSlotUTC.start_time}-${timeSlotUTC.end_time}`;
+                    newKeys.add(key);
+
+                    const existingSlot = existingByKey.get(key);
+
+                    if (existingSlot) {
+                        // Preserve booked slots; optionally update is_active only
+                        if (typeof is_active !== 'undefined') {
+                            existingSlot.is_active = is_active;
+                            await existingSlot.save();
+                        }
+                        updatedSlots.push(existingSlot);
+                    } else {
+                        // Create new slot (no existing one with same time range)
+                        const newSlot = await Slot.create({
+                            day: dayLower,
+                            start_time: timeSlotUTC.start_time,
+                            end_time: timeSlotUTC.end_time,
+                            is_active: typeof is_active !== 'undefined' ? is_active : true,
+                            created_by: decoded.id,
+                        });
+                        updatedSlots.push(newSlot);
+                    }
+                }
+
+                // 🧹 Remove only non-booked existing slots that are no longer in the new schedule
+                const slotsToDelete = existingSlots
+                    .filter(slot => {
+                        if (slot.is_booked) return false; // never delete booked slots
+                        const key = `${slot.start_time}-${slot.end_time}`;
+                        return !newKeys.has(key);
+                    })
+                    .map(slot => slot._id);
+
+                if (slotsToDelete.length > 0) {
+                    await Slot.deleteMany({ _id: { $in: slotsToDelete } });
                 }
             } catch (err) {
                 errors.push({ day, error: err.message });

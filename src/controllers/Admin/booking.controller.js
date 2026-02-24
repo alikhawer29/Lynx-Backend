@@ -23,6 +23,7 @@ const {
     sendBookingCancelledNotifications,
     sendRescheduleResponseNotifications,
 } = require('../../helpers/bookingNotification');
+const { getUserTimezone, convertTimeFromUTC } = require('../../helpers/timezone');
 
 dotenv.config();
 
@@ -127,6 +128,27 @@ const getBookings = async (req, res) => {
         const bookings = await Booking.aggregate(pipeline);
         const total = await Booking.countDocuments(filter);
 
+        // Convert slot times from UTC to admin's timezone for response
+        let bookingsWithLocalTimes = bookings;
+        try {
+            const admin = decoded ? await User.findById(decoded.id).lean() : null;
+            const adminTimezone = getUserTimezone(req, admin);
+
+            bookingsWithLocalTimes = bookings.map(b => {
+                const booking = { ...b };
+                if (booking.session_date && booking.slot && booking.slot.start_time) {
+                    const sessionDate = new Date(booking.session_date);
+                    booking.slot.start_time = convertTimeFromUTC(booking.slot.start_time, adminTimezone, sessionDate);
+                    if (booking.slot.end_time) {
+                        booking.slot.end_time = convertTimeFromUTC(booking.slot.end_time, adminTimezone, sessionDate);
+                    }
+                }
+                return booking;
+            });
+        } catch (e) {
+            console.log('Error converting slot times to admin timezone in getBookings:', e.message);
+        }
+
         const baseUrl = `${req.protocol}://${req.get("host")}${req.baseUrl}${req.path}`;
 
         const paginated = paginateResponse({
@@ -134,7 +156,7 @@ const getBookings = async (req, res) => {
             per_page: Number(per_page),
             total,
             baseUrl,
-            data: bookings
+            data: bookingsWithLocalTimes
         });
 
         return ResponseHandler.success(res, "Bookings retrieved successfully", paginated);
