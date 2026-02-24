@@ -40,6 +40,7 @@ const getBookings = async (req, res) => {
         let filter = {
             payment_status: { $in: ['paid', 'refunded'] }
         };
+        // Default sort: latest session first
         let sort = { session_date: -1, session_time: -1 };
         // Status filter - always apply if provided
         if (status) {
@@ -76,7 +77,11 @@ const getBookings = async (req, res) => {
             filter.booking_status = booking_status;
         }
 
-        if (sortBy) {
+        // Sorting
+        if (is_requested === 'true') {
+            // For requested view, sort by booking_id (latest first)
+            sort = { booking_id: -1 };
+        } else if (sortBy) {
             sort = { [sortBy]: 1 };
         }
 

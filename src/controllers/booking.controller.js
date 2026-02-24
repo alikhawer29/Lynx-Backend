@@ -997,6 +997,7 @@ const respondToReschedule = async (req, res) => {
             booking.session_date = booking.proposed_session_date;
             booking.session_time = booking.proposed_session_time;
             booking.slot_id = booking.proposed_slot_id;
+            booking.status = 'requested_approved';
             booking.reschedule_response = 'approved';
             booking.reschedule_responded_at = new Date();
             booking.reschedule_count += 1;
@@ -1034,7 +1035,7 @@ const respondToReschedule = async (req, res) => {
                 await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: false });
             }
 
-            booking.status = booking.status === 'pending' ? 'pending' : 'approved'; // Revert to previous status
+            booking.status = booking.status === 'requested_approved'; // Revert to previous status
             booking.reschedule_response = 'rejected';
             booking.reschedule_rejection_reason = rejection_reason;
             booking.reschedule_responded_at = new Date();
