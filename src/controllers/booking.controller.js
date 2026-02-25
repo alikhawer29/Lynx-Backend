@@ -1035,7 +1035,7 @@ const respondToReschedule = async (req, res) => {
                 await Slot.findByIdAndUpdate(booking.proposed_slot_id, { is_booked: false });
             }
 
-            booking.status = 'requested_rejected'; // Revert to previous status
+            booking.status = 'pending'; // Revert to previous status
             booking.reschedule_response = 'rejected';
             booking.reschedule_rejection_reason = rejection_reason;
             booking.reschedule_responded_at = new Date();
