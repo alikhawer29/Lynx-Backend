@@ -25,6 +25,19 @@ const {
 } = require('../../helpers/bookingNotification');
 const { getUserTimezone, convertTimeFromUTC } = require('../../helpers/timezone');
 
+const formatTo12HourTime = (timeStr) => {
+    if (!timeStr) return timeStr;
+    const [hourPart, minutePart = '00'] = timeStr.split(':');
+    const hour24 = parseInt(hourPart, 10);
+    if (Number.isNaN(hour24)) return timeStr;
+
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    let hour12 = hour24 % 12;
+    if (hour12 === 0) hour12 = 12;
+
+    return `${hour12}:${minutePart} ${period}`;
+};
+
 dotenv.config();
 
 
@@ -192,6 +205,29 @@ const getBookingById = async (req, res) => {
 
         if (!booking) {
             throw new Error(ERRORS.NOT_FOUND);
+        }
+
+        // Convert session_time and slot times from UTC to admin's timezone for display
+        try {
+            const decoded = req.decoded;
+            const admin = decoded ? await User.findById(decoded.id).lean() : null;
+            const adminTimezone = getUserTimezone(req, admin);
+            const sessionDate = booking.session_date ? new Date(booking.session_date) : new Date();
+
+            if (booking.session_time) {
+                const converted = convertTimeFromUTC(booking.session_time, adminTimezone, sessionDate);
+                booking.session_time = formatTo12HourTime(converted);
+            }
+            if (booking.slot_id) {
+                if (booking.slot_id.start_time) {
+                    booking.slot_id.start_time = convertTimeFromUTC(booking.slot_id.start_time, adminTimezone, sessionDate);
+                }
+                if (booking.slot_id.end_time) {
+                    booking.slot_id.end_time = convertTimeFromUTC(booking.slot_id.end_time, adminTimezone, sessionDate);
+                }
+            }
+        } catch (e) {
+            console.log('Error converting booking times to admin timezone in getBookingById:', e.message);
         }
 
         // Get reviews for this booking with user details
