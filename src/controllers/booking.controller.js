@@ -253,7 +253,7 @@ const getBookingById = async (req, res) => {
         // Convert to plain object with virtuals
         const booking = bookingDoc.toObject({ virtuals: true });
 
-        // Convert session_time from UTC to user's timezone for response
+        // Convert session_time (and proposed_session_time) from UTC to user's timezone for response
         try {
             const userForTz = booking.user_id || null;
             const userTimezone = getUserTimezone(req, userForTz);
@@ -261,6 +261,11 @@ const getBookingById = async (req, res) => {
             if (booking.session_date && booking.session_time) {
                 const sessionDate = new Date(booking.session_date);
                 booking.session_time = convertTimeFromUTC(booking.session_time, userTimezone, sessionDate);
+            }
+
+            if (booking.proposed_session_date && booking.proposed_session_time) {
+                const proposedDate = new Date(booking.proposed_session_date);
+                booking.proposed_session_time = convertTimeFromUTC(booking.proposed_session_time, userTimezone, proposedDate);
             }
         } catch (e) {
             console.log("Error converting session_time to user timezone:", e.message);
@@ -886,6 +891,17 @@ const rescheduleBooking = async (req, res) => {
             }
         }
 
+        // Get admin timezone (for converting proposed time to UTC)
+        const adminUser = await User.findById(decoded.id);
+        const adminTimezone = getUserTimezone(req, adminUser);
+
+        // Convert proposed_session_time from admin's timezone to UTC before storing
+        let proposedTimeUTC = proposed_session_time;
+        if (proposed_session_time) {
+            const proposedDateForConversion = proposed_session_date ? new Date(proposed_session_date) : new Date();
+            proposedTimeUTC = convertTimeToUTC(proposed_session_time, adminTimezone, proposedDateForConversion);
+        }
+
         // Store original values for notification
         const originalDate = booking.session_date;
         const originalTime = booking.session_time;
@@ -893,7 +909,7 @@ const rescheduleBooking = async (req, res) => {
         // Update booking with proposed reschedule details (keep status as approved)
         booking.reschedule_requested = true;
         booking.proposed_session_date = new Date(proposed_session_date);
-        booking.proposed_session_time = proposed_session_time;
+        booking.proposed_session_time = proposedTimeUTC;
         booking.proposed_slot_id = proposed_slot_id || null;
         booking.reschedule_reason = reschedule_reason || 'Admin requested reschedule';
         booking.reschedule_response = 'pending';

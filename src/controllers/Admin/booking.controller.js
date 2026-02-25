@@ -207,7 +207,7 @@ const getBookingById = async (req, res) => {
             throw new Error(ERRORS.NOT_FOUND);
         }
 
-        // Convert session_time and slot times from UTC to admin's timezone for display
+        // Convert session_time, proposed_session_time and slot times from UTC to admin's timezone for display
         try {
             const decoded = req.decoded;
             const admin = decoded ? await User.findById(decoded.id).lean() : null;
@@ -217,6 +217,11 @@ const getBookingById = async (req, res) => {
             if (booking.session_time) {
                 const converted = convertTimeFromUTC(booking.session_time, adminTimezone, sessionDate);
                 booking.session_time = formatTo12HourTime(converted);
+            }
+            if (booking.proposed_session_date && booking.proposed_session_time) {
+                const proposedDate = new Date(booking.proposed_session_date);
+                const convertedProposed = convertTimeFromUTC(booking.proposed_session_time, adminTimezone, proposedDate);
+                booking.proposed_session_time = formatTo12HourTime(convertedProposed);
             }
             if (booking.slot_id) {
                 if (booking.slot_id.start_time) {
