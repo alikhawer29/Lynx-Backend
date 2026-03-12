@@ -18,6 +18,7 @@ const reportRoutes = require('./report.route')
 const slotRoutes = require('./slot.route')
 const faqRoutes = require('./faq.route')
 const chatRoutes = require('./chat.route')
+const payoutRoutes = require('./payout.route')
 
 const adminServiceRoutes = require('./Admin/service.route')
 const adminCategoryRoutes = require('./Admin/category.route')
@@ -32,6 +33,7 @@ const adminPaymentRoutes = require('./Admin/payment.route')
 const adminReportRoutes = require('./Admin/report.route')
 const adminFaqRoutes = require('./Admin/faq.route')
 const adminChatRoutes = require('./Admin/chat.route')
+const adminPayoutRoutes = require('./Admin/payout.route')
 
 //ADMIN
 
@@ -60,6 +62,8 @@ router.use('/admin/reports', adminReportRoutes)
 router.use('/admin/faq', adminFaqRoutes)
 
 router.use('/admin/chat', adminChatRoutes)
+
+router.use('/admin/payouts', adminPayoutRoutes)
 
 //USER
 
@@ -96,5 +100,7 @@ router.use('/slot', slotRoutes)
 router.use('/faq', faqRoutes)
 
 router.use('/chat', chatRoutes)
+
+router.use('/payouts', payoutRoutes)
 
 module.exports = router

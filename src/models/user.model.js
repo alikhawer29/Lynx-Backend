@@ -60,6 +60,34 @@ const userSchema = mongoose.Schema({
     stripe_customer_id: {
         type: String,
     },
+
+    // Stripe Connect fields for providers
+    stripe_account_id: {
+        type: String,
+        default: null
+    },
+    stripe_account_status: {
+        type: String,
+        enum: ['not_started', 'pending', 'restricted', 'enabled', 'rejected'],
+        default: 'not_started'
+    },
+    payout_enabled: {
+        type: Boolean,
+        default: false
+    },
+    payout_schedule: {
+        type: String,
+        enum: ['manual', 'daily', 'weekly'],
+        default: 'manual'
+    },
+    payout_day: {
+        type: Number,  // 1-7 for weekly (Monday-Sunday), or number of days for disbursement
+        default: null
+    },
+    disbursement_days: {
+        type: Number,  // Number of days after booking completion
+        default: null
+    },
     favorite_services: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Service"

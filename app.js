@@ -14,6 +14,7 @@ const { setIO } = require('./src/helpers/socket')
 const { webhook } = require('./src/helpers/stripe')
 const { seedAdmin } = require('./src/seeders')
 const { startBookingStatusCron } = require('./src/cron/bookingStatusCron')
+const PayoutCronJob = require('./src/cron/payoutCron')
 
 dotenv.config()
 
@@ -71,6 +72,7 @@ const serverHandler = async () => {
         await connectSocket(io)
         await seedAdmin()
         startBookingStatusCron() // Start cron job
+        PayoutCronJob.startPayoutCron() // Start payout cron jobs
     } catch (e) {
         console.log("Error while connecting server :: ", e)
     }

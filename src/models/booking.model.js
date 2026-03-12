@@ -91,6 +91,56 @@ const bookingSchema = new mongoose.Schema(
             default: "unpaid",
         },
 
+        // Payout tracking
+        payout_status: {
+            type: String,
+            enum: ["pending", "processing", "paid", "failed", "cancelled"],
+            default: "pending"
+        },
+        amount_due_to_provider: {
+            type: Number,
+            required: true
+        },
+        platform_fee: {
+            type: Number,
+            required: true
+        },
+        stripe_charge_id: {
+            type: String,
+            default: null
+        },
+        payout_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Payout',
+            default: null
+        },
+
+        // Admin-controlled payout settings
+        admin_payout_config: {
+            payout_method: {
+                type: String,
+                enum: ['manual', 'weekly', 'disbursement_day'],
+                default: 'manual'
+            },
+            weekly_payout_day: {
+                type: Number, // 1-7 for Monday-Sunday
+                default: null
+            },
+            disbursement_days: {
+                type: Number, // Number of days after booking completion
+                default: null
+            },
+            configured_by: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User',
+                default: null
+            },
+            configured_at: {
+                type: Date,
+                default: null
+            }
+        },
+
         notes: { type: String },
 
         // Reschedule tracking
