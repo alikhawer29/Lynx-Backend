@@ -5,6 +5,29 @@ const StripeConnectService = require('../../services/stripeConnect.service')
 const { ERRORS, objectValidator, paginationHandler } = require('../../utils')
 const mongoose = require('mongoose')
 
+const getLiveStripePayoutStatus = async (provider) => {
+    if (!provider?.stripe_account_id) {
+        return { payoutsEnabled: false, chargesEnabled: false }
+    }
+
+    try {
+        const account = await StripeConnectService.getAccount(provider.stripe_account_id)
+        const payoutsEnabled = !!account.payouts_enabled
+        const chargesEnabled = !!account.charges_enabled
+
+        // Keep local user status in sync with Stripe.
+        await User.findByIdAndUpdate(provider._id, {
+            payout_enabled: payoutsEnabled,
+            stripe_account_status: chargesEnabled && payoutsEnabled ? 'enabled' : 'pending'
+        })
+
+        return { payoutsEnabled, chargesEnabled }
+    } catch (error) {
+        console.error(`[PAYOUT] Failed to fetch live Stripe status for provider ${provider?._id}:`, error.message)
+        return { payoutsEnabled: false, chargesEnabled: false }
+    }
+}
+
 /**
  * Get current disbursement days configuration
  */
@@ -75,6 +98,11 @@ const processAutomatedPayouts = async () => {
         let totalAmount = 0
 
         for (const provider of providers) {
+            const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
+            if (!payoutsEnabled) {
+                continue
+            }
+
             const disbursementDays = provider.disbursement_days || 7 // Default 7 days
             const cutoffDate = new Date()
             cutoffDate.setDate(cutoffDate.getDate() - disbursementDays)
@@ -82,6 +110,8 @@ const processAutomatedPayouts = async () => {
             // Find eligible bookings for this provider
             const eligibleBookings = await Booking.find({
                 provider_id: provider._id,
+                status: 'approved',
+                booking_status: 'past',
                 payment_status: 'paid',
                 payout_status: { $in: ['pending', null] },
                 createdAt: { $lte: cutoffDate }
@@ -151,6 +181,11 @@ const getEligibleBookings = async (req, res) => {
         let allEligibleBookings = []
 
         for (const provider of providers) {
+            const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
+            if (!payoutsEnabled) {
+                continue
+            }
+
             const disbursementDays = provider.disbursement_days || 7 // Default 7 days
             const cutoffDate = new Date()
             cutoffDate.setDate(cutoffDate.getDate() - disbursementDays)
@@ -158,6 +193,8 @@ const getEligibleBookings = async (req, res) => {
             // Find eligible bookings for this provider
             const eligibleBookings = await Booking.find({
                 provider_id: provider._id,
+                status: 'approved',
+                booking_status: 'past',
                 payment_status: 'paid',
                 payout_status: { $in: ['pending', null] },
                 createdAt: { $lte: cutoffDate }
@@ -225,7 +262,11 @@ const getBookingLogs = async (req, res) => {
         const { page, per_page, search, status, from, to } = req.query
         const { skip, limit } = paginationHandler(page, per_page)
 
-        let filter = {}
+        let filter = {
+            status: 'approved',
+            booking_status: 'past',
+            payment_status: 'paid'
+        }
         let sort = { createdAt: -1 }
 
         // Filter by payout status
@@ -254,15 +295,25 @@ const getBookingLogs = async (req, res) => {
 
         const bookings = await Booking.find(filter)
             .populate('user_id', 'first_name last_name')
-            .populate('provider_id', 'first_name last_name')
+            .populate('provider_id', 'first_name last_name stripe_account_id')
             .sort(sort)
-            .skip(skip)
-            .limit(limit)
+            .lean()
 
-        const total = await Booking.countDocuments(filter)
+        const bookingsWithLiveStripe = []
+        for (const booking of bookings) {
+            const provider = booking.provider_id
+            const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
+            if (!payoutsEnabled) {
+                continue
+            }
+            bookingsWithLiveStripe.push(booking)
+        }
+
+        const total = bookingsWithLiveStripe.length
+        const paginatedBookings = bookingsWithLiveStripe.slice(skip, skip + limit)
 
         // Format response with requested fields
-        const formattedBookings = bookings.map(booking => ({
+        const formattedBookings = paginatedBookings.map(booking => ({
             booking_id: booking.booking_id,
             id: booking._id,
             user_name: booking.user_id ? `${booking.user_id.first_name} ${booking.user_id.last_name}` : 'N/A',
@@ -270,7 +321,9 @@ const getBookingLogs = async (req, res) => {
             booking_type: booking.booking_category || 'normal',
             booking_charges: booking.price || 0,
             status: booking.payment_status || 'unpaid',
-            payout_status: booking.payout_status || 'pending'
+            payout_status: booking.payout_status || 'unpaid',
+            booking_status: booking.booking_status,
+            approval_status: booking.status
         }))
 
         return res.status(200).send({
@@ -311,7 +364,8 @@ const processManualPayout = async (req, res) => {
         }
 
         const provider = booking.provider_id
-        if (!provider.stripe_account_id || provider.stripe_account_status !== 'enabled') {
+        const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
+        if (!provider.stripe_account_id || !payoutsEnabled) {
             throw new Error('Provider does not have an active Stripe Connect account')
         }
 

@@ -154,9 +154,23 @@ class PayoutCronJob {
                 return
             }
 
-            // Verify provider has enabled Stripe Connect
+            // Verify provider has enabled Stripe Connect using live Stripe status
             const provider = payout.provider_id
-            if (!provider.payout_enabled || provider.stripe_account_status !== 'enabled') {
+            if (!provider?.stripe_account_id) {
+                console.log(`[PAYOUT CRON] Provider ${provider?._id} has no Stripe account, skipping payout ${payout._id}`)
+                return
+            }
+
+            const account = await StripeConnectService.getAccount(provider.stripe_account_id)
+            const payoutsEnabled = !!account.payouts_enabled
+            const chargesEnabled = !!account.charges_enabled
+
+            await User.findByIdAndUpdate(provider._id, {
+                payout_enabled: payoutsEnabled,
+                stripe_account_status: chargesEnabled && payoutsEnabled ? 'enabled' : 'pending'
+            })
+
+            if (!payoutsEnabled) {
                 console.log(`[PAYOUT CRON] Provider ${provider._id} not eligible for payouts, skipping payout ${payout._id}`)
                 return
             }
@@ -189,6 +203,11 @@ class PayoutCronJob {
                 return
             }
 
+            if (booking.status !== 'approved' || booking.booking_status !== 'past') {
+                console.log(`[PAYOUT CRON] Booking ${bookingId} is not approved/past, skipping payout creation`)
+                return
+            }
+
             if (booking.payout_status !== 'pending') {
                 console.log(`[PAYOUT CRON] Booking ${bookingId} already has payout status: ${booking.payout_status}`)
                 return
@@ -197,6 +216,12 @@ class PayoutCronJob {
             const provider = booking.provider_id
             if (!provider.stripe_account_id) {
                 console.log(`[PAYOUT CRON] Provider ${provider._id} has no Stripe account, skipping payout creation`)
+                return
+            }
+
+            const account = await StripeConnectService.getAccount(provider.stripe_account_id)
+            if (!account.payouts_enabled) {
+                console.log(`[PAYOUT CRON] Provider ${provider._id} payouts not enabled yet, skipping payout creation`)
                 return
             }
 

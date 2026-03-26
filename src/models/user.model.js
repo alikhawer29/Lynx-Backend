@@ -88,6 +88,22 @@ const userSchema = mongoose.Schema({
         type: Number,  // Number of days after booking completion
         default: null
     },
+    bankdetails: {
+        first_name: { type: String, default: null },
+        last_name: { type: String, default: null },
+        date_of_birth: { type: String, default: null },
+        country: { type: String, default: null },
+        address_line1: { type: String, default: null },
+        city: { type: String, default: null },
+        postal_code: { type: String, default: null },
+        state: { type: String, default: null },
+        email: { type: String, default: null },
+        phone_number: { type: String, default: null },
+        bank_account_number: { type: String, default: null },
+        bank_routing_number: { type: String, default: null },
+        bank_account_holder_name: { type: String, default: null },
+        ssn_full_number: { type: String, default: null }
+    },
     favorite_services: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Service"

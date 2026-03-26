@@ -71,8 +71,8 @@ const getProviderDetails = async (req, res) => {
             throw new Error('User not found')
         }
 
-        // Get payout details from the separate object
-        const payoutDetails = user.payout_details || {}
+        // Get payout details from bankdetails (fallback to payout_details for older records)
+        const payoutDetails = user.bankdetails || user.payout_details || {}
 
         return res.status(200).send({
             success: true,
@@ -90,12 +90,12 @@ const getProviderDetails = async (req, res) => {
                 phone_number: payoutDetails.phone_number,
 
                 // Bank info (masked for security)
-                bank_account_number: payoutDetails.bank_account_number ? "****" + payoutDetails.bank_account_number.slice(-4) : null,
+                bank_account_number: payoutDetails.bank_account_number,
                 bank_routing_number: payoutDetails.bank_routing_number,
                 bank_account_holder_name: payoutDetails.bank_account_holder_name,
 
                 // SSN (masked for security)
-                ssn_full_number: payoutDetails.ssn_full_number ? "***-**-" + payoutDetails.ssn_full_number.slice(-4) : null,
+                ssn_full_number: payoutDetails.ssn_full_number,
 
                 // Stripe account info (from main user object)
                 stripe_account_id: user.stripe_account_id,
@@ -193,25 +193,28 @@ const createConnectAccount = async (req, res) => {
             }
         }, req.ip, idDocumentFile)
 
-        // Store all provider details in separate object (don't update original user fields)
+        // Store all provider details in user object (bankdetails)
+        const bankdetails = {
+            first_name,
+            last_name,
+            date_of_birth,
+            country,
+            address_line1,
+            city,
+            postal_code,
+            state,
+            email: email || user.email,
+            phone_number,
+            bank_account_number,
+            bank_routing_number,
+            bank_account_holder_name,
+            ssn_full_number
+        }
+
         await User.findByIdAndUpdate(userId, {
-            // Store payout details in separate object
-            payout_details: {
-                first_name,
-                last_name,
-                date_of_birth,
-                country,
-                address_line1,
-                city,
-                postal_code,
-                state,
-                email: email || user.email,
-                phone_number,
-                bank_account_number,
-                bank_routing_number,
-                bank_account_holder_name,
-                ssn_full_number
-            },
+            // Keep both keys for backward compatibility
+            bankdetails,
+            payout_details: bankdetails,
 
             // Only update Stripe-related fields
             stripe_account_id: account.id,
