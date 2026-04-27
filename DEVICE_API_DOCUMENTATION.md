@@ -16,7 +16,7 @@ The system now supports storing device IDs and device types for users and provid
 ### 1. Login with Device Information
 
 **POST** `/auth/login`  
-**POST** `/auth/social-login`  
+**POST** `/auth/firebase-login`  
 **POST** `/Admin/auth/login`
 
 #### Request Body

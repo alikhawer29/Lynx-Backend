@@ -11,7 +11,7 @@ router.post('/signup', upload("user").any(), authController.signup)
 
 router.post('/login', authController.login)
 
-router.post('/social-login', authController.socialLogin)
+router.post('/firebase-login', authController.firebaseLogin)
 
 router.post('/logout', AuthVerifier, authController.logout)
 

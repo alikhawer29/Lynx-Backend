@@ -59,8 +59,12 @@ const CONTENT_TYPES = {
 
 const AUTH_TYPES = {
     EMAIL: "email",
+    /** Google / Apple / Facebook are configured in Firebase Console; use Firebase Auth on the client and POST /auth/firebase-login. */
+    FIREBASE: "firebase",
+    /** @deprecated retained for legacy DB records only */
     GOOGLE: "google",
     APPLE: "apple",
+    FACEBOOK: "facebook",
 }
 
 const MEDIA_TYPES = {

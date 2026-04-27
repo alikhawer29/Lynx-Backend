@@ -1,4 +1,3 @@
-const jwt = require("jsonwebtoken")
 const User = require('../models/user.model')
 const Otp = require('../models/otp.model')
 const Conversation = require('../models/conversation.model')
@@ -7,116 +6,208 @@ const { generateToken, addToBlacklist } = require('../helpers/token')
 const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendMail } = require("../helpers/email")
+const admin = require('../configs/firebase')
+const authPlaceholders = require('../configs/authPlaceholders.config')
 
 const fs = require("fs");
 const path = require("path");
 
-const socialLogin = (async (req, res) => {
+function splitName(displayName) {
+    const t = (displayName || '').trim()
+    if (!t) return { first_name: 'User', last_name: '-' }
+    const parts = t.split(/\s+/)
+    if (parts.length === 1) return { first_name: parts[0], last_name: '-' }
+    return { first_name: parts[0], last_name: parts.slice(1).join(' ') }
+}
+
+/**
+ * Sign-in with Google / Apple / Facebook via Firebase Auth (client gets ID token; we verify with Admin).
+ * Body: { id_token, source?, device_id?, device_type?, timezone?, first_name?, last_name? }
+ * id_token = Firebase user.getIdToken() result.
+ */
+const firebaseLogin = (async (req, res) => {
     try {
+        const { id_token, source, device_id, device_type, timezone, first_name, last_name } = req.body
 
-        let { access_token, type, source, device_id, device_type, timezone } = req.body
-
-        if (!access_token || !type) {
+        if (!id_token) {
             throw new Error(ERRORS.REQUIRED_FIELD)
         }
 
-        let email = null, name = null, picture = null, sub = null
+        const requestedRole =
+            source === ROLES.PROVIDER
+                ? ROLES.PROVIDER
+                : source === ROLES.ADMIN
+                  ? ROLES.ADMIN
+                  : ROLES.USER
 
-        if (type === AUTH_TYPES.GOOGLE) {
-
-            const google_response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${access_token}`);
-            const google_data = await google_response.json();
-
-            if (google_data.error) {
-                return res.status(401).json({ error: "Invalid Google Token" });
-            }
-
-            email = google_data?.email
-            name = google_data?.name
-            picture = google_data?.picture
-            sub = google_data?.sub
-
-        } else if (type === AUTH_TYPES.APPLE) {
-
-            const decoded = jwt.decode(access_token, { complete: true });
-
-            if (!decoded || !decoded.payload) {
-                return res.status(401).json({ error: "Invalid Apple Token" });
-            }
-
-            email = decoded?.payload?.email
-            sub = decoded?.payload?.sub
-            name = decoded?.payload?.email.split("@")[0]
-
+        if (requestedRole === ROLES.ADMIN) {
+            return res.status(403).send({
+                success: false,
+                code: 'ADMIN_FIREBASE_NOT_ALLOWED',
+                message: 'Admin sign-in is not available via this endpoint',
+            })
         }
 
-        let projection = { __v: 0, password: 0, createdAt: 0, updatedAt: 0 }
+        let decoded
+        try {
+            decoded = await admin.auth().verifyIdToken(id_token)
+        } catch (e) {
+            console.error('firebase verifyIdToken:', e.message)
+            return res.status(401).send({
+                success: false,
+                code: 'FIREBASE_TOKEN_INVALID',
+                message: 'Invalid or expired Firebase ID token',
+            })
+        }
 
-        let userExist = await User.findOne({ provider_id: sub }, projection).populate([{ path: "manager" }])
+        const uid = decoded.uid
+        const email = (decoded.email || '').toLowerCase() || null
+        if (!email) {
+            return res.status(400).send({
+                success: false,
+                code: 'FIREBASE_EMAIL_REQUIRED',
+                message:
+                    'No email on Firebase account. Enable email in Firebase Auth (provider) or use an account that shares email.',
+            })
+        }
+
+        const displayName = decoded.name || email.split('@')[0]
+        let nameParts =
+            first_name && last_name
+                ? { first_name: String(first_name).trim(), last_name: String(last_name).trim() }
+                : splitName(displayName)
+
+        const pic = decoded.picture ? String(decoded.picture) : 'uploads/user/dummy.jpg'
+
+        const phoneSuffix = String(uid).replace(/\W/g, '').slice(0, 12) || 'fb'
+
+        const projection = { __v: 0, password: 0, createdAt: 0, updatedAt: 0 }
+
+        let userExist = await User.findOne(
+            { auth_provider: AUTH_TYPES.FIREBASE, provider_id: uid },
+            projection
+        )
 
         if (!userExist) {
-            // Create new user with timezone if provided
-            const userData = {
-                name,
-                email,
-                picture,
-                auth_provider: type,
-                provider_id: sub
-            };
-
-            // Add timezone if provided
-            if (timezone) {
-                const moment = require('moment-timezone');
-                try {
-                    if (moment.tz.zone(timezone)) {
-                        userData.timezone = timezone;
-                    }
-                } catch (error) {
-                    console.warn(`Invalid timezone provided: ${timezone}`);
+            userExist = await User.findOne({ email }, projection)
+            if (userExist) {
+                if (userExist.auth_provider === AUTH_TYPES.EMAIL && userExist.password) {
+                    return res.status(409).send({
+                        success: false,
+                        code: 'ACCOUNT_EXISTS_WITH_EMAIL',
+                        message:
+                            'An account with this email already exists. Sign in with email and password.',
+                    })
                 }
-            }
-
-            userExist = await User.create(userData);
-        } else {
-            // Update timezone if provided (for existing user)
-            if (timezone) {
-                const moment = require('moment-timezone');
-                try {
-                    if (moment.tz.zone(timezone)) {
-                        userExist.timezone = timezone;
-                    }
-                } catch (error) {
-                    console.warn(`Invalid timezone provided: ${timezone}`);
+                if (
+                    [AUTH_TYPES.GOOGLE, AUTH_TYPES.APPLE, AUTH_TYPES.FACEBOOK].includes(
+                        userExist.auth_provider
+                    )
+                ) {
+                    return res.status(409).send({
+                        success: false,
+                        code: 'ACCOUNT_LEGACY_SOCIAL',
+                        message:
+                            'This email used the old sign-in. Contact support to migrate, or use a different email.',
+                    })
+                }
+                if (userExist.auth_provider && userExist.auth_provider !== AUTH_TYPES.FIREBASE) {
+                    return res.status(409).send({
+                        success: false,
+                        code: 'ACCOUNT_EXISTS_OTHER_PROVIDER',
+                        message: 'This email is already linked to a different sign-in method.',
+                    })
+                }
+                if (userExist.auth_provider === AUTH_TYPES.FIREBASE) {
+                    userExist.provider_id = uid
                 }
             }
         }
 
-        let requested_user_role = source ? source : ROLES.MANAGER
+        if (!userExist) {
+            if (requestedRole === ROLES.PROVIDER) {
+                return res.status(400).send({
+                    success: false,
+                    code: 'PROVIDER_USE_SIGNUP',
+                    message:
+                        'Service provider accounts must be created through the full signup form with certifications.',
+                })
+            }
 
-        if ((requested_user_role !== userExist.role)) {
+            const userData = {
+                first_name: nameParts.first_name,
+                last_name: nameParts.last_name,
+                email,
+                language: authPlaceholders.defaultLanguage,
+                country_code: authPlaceholders.countryCode,
+                dialing_code: authPlaceholders.dialingCode,
+                phone: `fb${phoneSuffix}`.slice(0, 32),
+                picture: pic,
+                auth_provider: AUTH_TYPES.FIREBASE,
+                provider_id: uid,
+                role: ROLES.USER,
+                active: true,
+            }
+
+            if (timezone) {
+                const moment = require('moment-timezone')
+                try {
+                    if (moment.tz.zone(timezone)) {
+                        userData.timezone = timezone
+                    }
+                } catch (error) {
+                    console.warn(`Invalid timezone provided: ${timezone}`)
+                }
+            }
+
+            userExist = await User.create(userData)
+        } else {
+            if (pic && pic.startsWith('http') && (!userExist.picture || userExist.picture.includes('dummy'))) {
+                userExist.picture = pic
+            }
+            if (timezone) {
+                const moment = require('moment-timezone')
+                try {
+                    if (moment.tz.zone(timezone)) {
+                        userExist.timezone = timezone
+                    }
+                } catch (error) {
+                    console.warn(`Invalid timezone provided: ${timezone}`)
+                }
+            }
+        }
+
+        if (requestedRole !== userExist.role) {
             throw new Error(ERRORS.UNAUTHORIZED)
+        }
+
+        if (userExist.role === ROLES.PROVIDER && !userExist.is_verified && userExist.reject_reason) {
+            throw new Error('Your profile is rejected by admin')
+        }
+
+        if (userExist.role === ROLES.PROVIDER && !userExist.is_verified) {
+            throw new Error('Your profile is pending admin approval')
         }
 
         if (!userExist.active) {
             throw new Error(ERRORS.BLOCKEDBY_ADMIN)
         }
 
-        let token = await generateToken({ id: userExist._id, email: userExist.email, role: userExist.role })
+        const sessionToken = await generateToken({
+            id: userExist._id,
+            email: userExist.email,
+            role: userExist.role,
+        })
 
-        // Handle device_id and device_type
         if (device_id) {
-            // Initialize device_ids array if it doesn't exist
             if (!userExist.device_ids) {
                 userExist.device_ids = []
             }
-
-            // Add device_id to array if it doesn't already exist
             if (!userExist.device_ids.includes(device_id)) {
                 userExist.device_ids.push(device_id)
             }
         }
 
-        // Update device_type if provided
         if (device_type && ['ios', 'android', 'web'].includes(device_type)) {
             userExist.device_type = device_type
         }
@@ -124,25 +215,35 @@ const socialLogin = (async (req, res) => {
         await userExist.save()
 
         let currentUser = { ...userExist._doc }
+        delete currentUser.password
 
-        let active_subscription = await getCurrentSubscription(currentUser._id)
+        if (userExist.role === ROLES.PROVIDER) {
+            currentUser.image_url = userExist.image_url
+            currentUser.resume_url = userExist.resume_url
+            currentUser.certifications_with_urls = userExist.certifications_with_urls
+        } else {
+            currentUser.image_url = userExist.image_url
+        }
+
+        const active_subscription = await getCurrentSubscription(currentUser._id)
         currentUser.active_subscription = active_subscription
 
-        let conversation = await Conversation.findOne({ participants: { $in: [currentUser._id] } }).select("_id")
-        currentUser.conversation = conversation._id
+        const conversation = await Conversation.findOne({ participants: { $in: [currentUser._id] } })
+            .select('_id')
+            .lean()
+        currentUser.conversation = conversation?._id || null
 
         return res.status(200).send({
             success: true,
-            message: "User successfully logged in",
-            token,
-            data: currentUser
+            message: 'User successfully logged in',
+            token: sessionToken,
+            data: currentUser,
         })
-
     } catch (e) {
-        console.log("Error Message :: ", e)
+        console.log('Error Message :: ', e)
         return res.status(400).send({
             success: false,
-            message: e.message
+            message: e.message,
         })
     }
 })
@@ -588,7 +689,7 @@ const logout = async (req, res) => {
 
 module.exports = {
     login,
-    socialLogin,
+    firebaseLogin,
     signup,
     forgetPassword,
     verifyOtp,
