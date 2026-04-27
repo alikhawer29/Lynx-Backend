@@ -3,6 +3,15 @@ const { getSearchQuery, getDateRangeQuery, paginationHandler } = require('../../
 const { ROLES } = require('../../utils')
 const ResponseHandler = require('../../utils/response')
 
+/** Same document scope as getAdminNotifications / markAllAsRead (admin). */
+const getAdminNotificationScope = (adminId) => ({
+    $or: [
+        { recipients: { $in: [adminId] } },
+        { for_admins: true },
+        { for_all: true }
+    ]
+})
+
 // User/Service Provider: Get notifications
 const getUserNotifications = async (req, res) => {
     try {
@@ -119,8 +128,14 @@ const getAdminNotifications = async (req, res) => {
 
         let total = await Notification.countDocuments(filter)
 
+        const unread_count = await Notification.countDocuments({
+            ...getAdminNotificationScope(decoded.id),
+            read: false
+        })
+
         return ResponseHandler.success(res, "Notifications retrieved successfully", {
             total,
+            unread_count,
             data: notifications
         })
 
@@ -193,8 +208,14 @@ const markAllAsRead = async (req, res) => {
             { read: true }
         )
 
+        const unread_count = await Notification.countDocuments({
+            ...getAdminNotificationScope(decoded.id),
+            read: false
+        })
+
         return ResponseHandler.success(res, `Marked ${result.modifiedCount} notifications as read`, {
-            marked_count: result.modifiedCount
+            marked_count: result.modifiedCount,
+            unread_count
         });
 
     } catch (e) {
