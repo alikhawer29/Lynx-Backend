@@ -99,6 +99,7 @@ const createBooking = async (req, res) => {
             }
         }
 
+
         const booking = new Booking(payload);
         await booking.save();
 

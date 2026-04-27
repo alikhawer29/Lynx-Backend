@@ -99,11 +99,11 @@ const bookingSchema = new mongoose.Schema(
         },
         amount_due_to_provider: {
             type: Number,
-            required: true
+            required: false
         },
         platform_fee: {
             type: Number,
-            required: true
+            required: false
         },
         stripe_charge_id: {
             type: String,
