@@ -4,6 +4,7 @@ const Booking = require('../models/booking.model');
 const { paginationHandler, normalize } = require('../utils');
 const { getIO } = require('../helpers/socket');
 const path = require('path');
+const { notifyChatMessageRecipient } = require('../helpers/notification');
 
 // ============================
 // Send Message (WhatsApp-like: text + files)
@@ -102,6 +103,8 @@ const sendMessage = async (req, res) => {
             { path: 'sender_id', select: 'first_name last_name picture role' },
             { path: 'receiver_id', select: 'first_name last_name picture role' },
         ]);
+
+        await notifyChatMessageRecipient(message, chat_room_id);
 
         // Emit via Socket.IO
         const io = getIO();

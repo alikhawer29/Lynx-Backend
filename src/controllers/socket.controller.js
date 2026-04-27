@@ -2,6 +2,7 @@ const ChatRoom = require('../models/chatRoom.model');
 const ChatMessage = require('../models/chatMessage.model');
 const UserOnlineStatus = require('../models/userOnlineStatus.model');
 const Booking = require('../models/booking.model');
+const { notifyChatMessageRecipient } = require('../helpers/notification');
 
 const socketController = (socket, io) => {
     const userId = socket.user_id;
@@ -210,6 +211,8 @@ const socketController = (socket, io) => {
                 { path: 'sender_id', select: 'first_name last_name picture role' },
                 { path: 'receiver_id', select: 'first_name last_name picture role' },
             ]);
+
+            await notifyChatMessageRecipient(message, chat_room_id);
 
             // Emit to chat room
             io.to(chat_room_id).emit('receive_message', message);

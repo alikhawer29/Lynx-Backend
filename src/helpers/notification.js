@@ -114,6 +114,54 @@ const sendBulkNotification = (async (notification, ids = [], savable = true) => 
 
 })
 
+/**
+ * Persist in-app notification + send FCM when the user has device tokens.
+ * Call after message is saved and sender_id/receiver_id are populated (or plain ObjectIds).
+ */
+const notifyChatMessageRecipient = async (message, chat_room_id) => {
+    try {
+        const receiverRaw = message.receiver_id
+        const receiverId = receiverRaw?._id ? receiverRaw._id : receiverRaw
+        if (!receiverId) return
+
+        const senderRaw = message.sender_id
+        const sender = typeof senderRaw === 'object' && senderRaw !== null ? senderRaw : null
+        const senderName = sender?.first_name
+            ? [sender.first_name, sender.last_name].filter(Boolean).join(' ').trim()
+            : 'Someone'
+
+        let preview = 'New message'
+        if (message.message_text) {
+            preview =
+                message.message_text.length > 120
+                    ? `${message.message_text.slice(0, 117)}...`
+                    : message.message_text
+        } else if (message.attachments?.length) {
+            const ft = message.attachments[0].file_type
+            preview = ft === 'image' ? '📷 Photo' : '📎 File'
+        }
+
+        const senderId = message.sender_id?._id ?? message.sender_id
+
+        await sendNotification(
+            {
+                title: 'New message',
+                body: `${senderName}: ${preview}`,
+                data: {
+                    type: 'new_chat_message',
+                    chat_room_id: String(chat_room_id),
+                    message_id: String(message._id),
+                    sender_id: String(senderId),
+                },
+            },
+            receiverId,
+            true
+        )
+    } catch (e) {
+        console.error('notifyChatMessageRecipient:', e.message)
+    }
+}
+
 const sendStatusChangeNotification = async (user, newStatus, adminUser) => {
     try {
         const statusText = newStatus ? 'activated' : 'deactivated'
@@ -155,5 +203,6 @@ const sendStatusChangeNotification = async (user, newStatus, adminUser) => {
 module.exports = {
     sendNotification,
     sendBulkNotification,
-    sendStatusChangeNotification
+    sendStatusChangeNotification,
+    notifyChatMessageRecipient,
 }

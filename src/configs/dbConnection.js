@@ -25,6 +25,8 @@ const connectSocket = async (io) => {
 
             if (decoded) {
                 socket.user_id = decoded.id
+                // Personal room so io.to(userId) (e.g. new_message_notification) can reach this socket
+                socket.join(String(decoded.id))
                 console.log("Socket Connection Successfully Created", socket.id, socket.user_id)
                 socketController(socket, io)
             }
