@@ -2,7 +2,7 @@ const Payout = require('../../models/payout.model')
 const Booking = require('../../models/booking.model')
 const User = require('../../models/user.model')
 const StripeConnectService = require('../../services/stripeConnect.service')
-const { ERRORS, objectValidator, paginationHandler } = require('../../utils')
+const { ERRORS, objectValidator, paginationHandler, getDateRangeQuery } = require('../../utils')
 const mongoose = require('mongoose')
 
 const getLiveStripePayoutStatus = async (provider) => {
@@ -287,10 +287,7 @@ const getBookingLogs = async (req, res) => {
 
         // Date range filter
         if (from || to) {
-            const dateFilter = {}
-            if (from) dateFilter.$gte = new Date(from)
-            if (to) dateFilter.$lte = new Date(to)
-            filter.createdAt = dateFilter
+            filter.createdAt = getDateRangeQuery(from, to)
         }
 
         const bookings = await Booking.find(filter)
@@ -418,10 +415,7 @@ const getPayouts = async (req, res) => {
         }
 
         if (from || to) {
-            const dateFilter = {}
-            if (from) dateFilter.$gte = new Date(from)
-            if (to) dateFilter.$lte = new Date(to)
-            filter.createdAt = dateFilter
+            filter.createdAt = getDateRangeQuery(from, to)
         }
 
         const payouts = await Payout.find(filter, options)

@@ -1583,15 +1583,9 @@ const getProviderApprovedAppointments = async (req, res) => {
             status: 'approved'
         };
 
-        // Date range filter
+        // Date range filter (inclusive, same rules as getDateRangeQuery / admin lists)
         if (from || to) {
-            filter.session_date = {};
-            if (from) {
-                filter.session_date.$gte = new Date(from);
-            }
-            if (to) {
-                filter.session_date.$lte = new Date(to);
-            }
+            filter.session_date = getDateRangeQuery(from, to);
         }
 
         // Booking status filter

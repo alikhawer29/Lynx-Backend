@@ -1,4 +1,5 @@
 const path = require("path")
+const moment = require("moment-timezone")
 
 const MONTHS = [`January`, `February`, `March`, `April`, `May`, `June`, `July`, `August`, `September`, `October`, `November`, `December`]
 
@@ -246,19 +247,44 @@ const getMinMax = (arr) => {
 
 const getSearchQuery = (value) => ({ "$regex": value, "$options": "i" })
 
+/**
+ * Inclusive day range for Mongo date fields.
+ * "from"/"to" are calendar dates: same value for both = that single day; different = inclusive of both ends.
+ * Bounds use DEFAULT_TIMEZONE (see .env, same as helpers/timezone.js) so local vs live servers behave the same
+ * (avoids setHours in the process timezone, which differed between dev machines and production).
+ */
 const getDateRangeQuery = (from, to) => {
-
-    let fromDate, toDate;
-    let rangeFilter = {}
+    const rangeFilter = {}
+    const tz = process.env.DEFAULT_TIMEZONE || "UTC"
 
     if (from) {
-        fromDate = new Date(new Date(from).setHours(0, 0, 0, 0))
-        rangeFilter = { ...rangeFilter, $gte: fromDate }
+        const s = String(from).trim()
+        const datePart = s.length >= 10 ? s.slice(0, 10) : s
+        let m
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            m = moment.tz(datePart, "YYYY-MM-DD", tz).startOf("day")
+        } else {
+            const parsed = moment(from)
+            m = parsed.isValid() ? parsed.clone().tz(tz).startOf("day") : null
+        }
+        if (m && m.isValid()) {
+            rangeFilter.$gte = m.toDate()
+        }
     }
 
     if (to) {
-        toDate = new Date(new Date(to).setHours(23, 59, 59, 999))
-        rangeFilter = { ...rangeFilter, $lte: toDate }
+        const s = String(to).trim()
+        const datePart = s.length >= 10 ? s.slice(0, 10) : s
+        let m
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            m = moment.tz(datePart, "YYYY-MM-DD", tz).endOf("day")
+        } else {
+            const parsed = moment(to)
+            m = parsed.isValid() ? parsed.clone().tz(tz).endOf("day") : null
+        }
+        if (m && m.isValid()) {
+            rangeFilter.$lte = m.toDate()
+        }
     }
 
     return rangeFilter
