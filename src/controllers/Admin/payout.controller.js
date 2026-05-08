@@ -255,11 +255,43 @@ const getEligibleBookings = async (req, res) => {
 }
 
 /**
+ * TEMPORARY: start date for earning summary on booking logs (rolling window from now UTC).
+ * Query: earning_period=1m | 6m | 1y  (defaults to 1m when omitted — see original behaviour comment below.)
+ */
+function getBookingLogsEarningsPeriodStart(earningPeriod) {
+    const now = new Date()
+    const p = String(earningPeriod || '1m').toLowerCase()
+    const start = new Date(now.getTime())
+
+    // if (!earningPeriod) {
+    //   ORIGINAL: no earnings block — totals were not computed
+    // }
+    if (p === '6m' || p === 'six_months' || p === '6months') {
+        start.setUTCMonth(start.getUTCMonth() - 6)
+    } else if (p === '1y' || p === '12m' || p === 'year' || p === 'one_year') {
+        start.setUTCFullYear(start.getUTCFullYear() - 1)
+    } else {
+        // default 1 month
+        start.setUTCMonth(start.getUTCMonth() - 1)
+    }
+    return { start, periodKey: p === '6m' || p === 'six_months' || p === '6months' ? '6m' : p === '1y' || p === '12m' || p === 'year' || p === 'one_year' ? '1y' : '1m' }
+}
+
+/**
  * Get booking logs for payout management
  */
 const getBookingLogs = async (req, res) => {
     try {
-        const { page, per_page, search, status, from, to } = req.query
+        const {
+            page,
+            per_page,
+            search,
+            status,
+            from,
+            to,
+            earning_period,
+            sync_list_with_earning_period,
+        } = req.query
         const { skip, limit } = paginationHandler(page, per_page)
 
         let filter = {
@@ -268,6 +300,36 @@ const getBookingLogs = async (req, res) => {
             payment_status: 'paid'
         }
         let sort = { createdAt: -1 }
+
+        // TEMPORARY: earnings_summary ALWAYS uses earning_period rolling window on createdAt (or from/to when set).
+        // DEFAULT list: UNFILTERED by earning_period so admin sees full payout log history (fixes hiding old rows).
+        // Optional sync_list_with_earning_period=1|true narrows LIST to same createdAt window as earnings.
+        //
+        // OLD regression (don't restore as default): always applying earning_period to BOTH list + earnings
+        // made total match visible rows but admin only saw ~1 booking when most data was older than 1m.
+        const syncListPeriod =
+            String(sync_list_with_earning_period || '').toLowerCase() === 'true' ||
+            sync_list_with_earning_period === '1'
+
+        let periodKeyForSummary = '1m'
+        let earningsDateMatch = {}
+        let list_applies_earning_window = false
+
+        if (from || to) {
+            earningsDateMatch = getDateRangeQuery(from, to)
+            periodKeyForSummary = 'custom'
+            filter.createdAt = earningsDateMatch
+            list_applies_earning_window = false // date comes from explicit from/to (not purely earning_period)
+        } else {
+            const { start, periodKey } = getBookingLogsEarningsPeriodStart(earning_period)
+            earningsDateMatch = { $gte: start }
+            periodKeyForSummary = periodKey
+            if (syncListPeriod) {
+                filter.createdAt = earningsDateMatch
+                list_applies_earning_window = true
+            }
+            // if (!syncListPeriod) ORIGINAL UX: full eligible list — earnings_summary totals are period-only on createdAt
+        }
 
         // Filter by payout status
         if (status) {
@@ -285,11 +347,6 @@ const getBookingLogs = async (req, res) => {
             ]
         }
 
-        // Date range filter
-        if (from || to) {
-            filter.createdAt = getDateRangeQuery(from, to)
-        }
-
         const bookings = await Booking.find(filter)
             .populate('user_id', 'first_name last_name')
             .populate('provider_id', 'first_name last_name stripe_account_id')
@@ -299,10 +356,10 @@ const getBookingLogs = async (req, res) => {
         const bookingsWithLiveStripe = []
         for (const booking of bookings) {
             const provider = booking.provider_id
-            const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
-            if (!payoutsEnabled) {
-                continue
-            }
+            // const { payoutsEnabled } = await getLiveStripePayoutStatus(provider)
+            // if (!payoutsEnabled) {
+            //     continue
+            // }
             bookingsWithLiveStripe.push(booking)
         }
 
@@ -310,12 +367,16 @@ const getBookingLogs = async (req, res) => {
         const paginatedBookings = bookingsWithLiveStripe.slice(skip, skip + limit)
 
         // Format response with requested fields
+        // TEMPORARY NOTE: tier uses price_type (schema); booking_category kept as fallback comment for legacy if ever added:
         const formattedBookings = paginatedBookings.map(booking => ({
             booking_id: booking.booking_id,
             id: booking._id,
             user_name: booking.user_id ? `${booking.user_id.first_name} ${booking.user_id.last_name}` : 'N/A',
             host_name: booking.provider_id ? `${booking.provider_id.first_name} ${booking.provider_id.last_name}` : 'N/A',
-            booking_type: booking.booking_category || 'normal',
+            booking_type:
+                booking.price_type ||
+                // booking.booking_category ||
+                'normal',
             booking_charges: booking.price || 0,
             status: booking.payment_status || 'unpaid',
             payout_status: booking.payout_status || 'unpaid',
@@ -323,16 +384,161 @@ const getBookingLogs = async (req, res) => {
             approval_status: booking.status
         }))
 
+        // --- TEMPORARY: earnings totals by normal vs premium (rolling earning_period createdAt unless from/to).
+        // Default: table dates are NOT clipped to that window unless sync_list_with_earning_period=true. ---
+        let earnings_summary = null
+        // try/catch isolation so aggregation failure doesn't break logs list
+        try {
+            const earningsMatch = {
+                deleted: false,
+                status: 'approved',
+                booking_status: 'past',
+                payment_status: 'paid',
+                createdAt: earningsDateMatch,
+            }
+
+            const earningsAgg = await Booking.aggregate([
+                { $match: earningsMatch },
+                {
+                    $project: {
+                        price: { $ifNull: ['$price', 0] },
+                        tier: {
+                            $cond: [
+                                {
+                                    $eq: [
+                                        { $toLower: { $ifNull: ['$price_type', 'normal'] } },
+                                        'premium',
+                                    ],
+                                },
+                                'premium',
+                                'normal',
+                            ],
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$tier',
+                        total: { $sum: '$price' },
+                    },
+                },
+            ])
+
+            const normalRow = earningsAgg.find((x) => x._id === 'normal')
+            const premiumRow = earningsAgg.find((x) => x._id === 'premium')
+
+            const bookings_matched = await Booking.countDocuments(earningsMatch)
+
+            earnings_summary = {
+                period: periodKeyForSummary,
+                period_label:
+                    periodKeyForSummary === 'custom'
+                        ? 'query_from_to'
+                        : periodKeyForSummary === '6m'
+                          ? 'last_6_months'
+                          : periodKeyForSummary === '1y'
+                            ? 'last_12_months'
+                            : 'last_1_month',
+                // Sum of booking.price (gross), not net provider payout; split by price_type normal vs premium
+                normal_bookings_total: normalRow ? Math.round(normalRow.total * 100) / 100 : 0,
+                premium_bookings_total: premiumRow ? Math.round(premiumRow.total * 100) / 100 : 0,
+                combined_total:
+                    Math.round(((normalRow?.total || 0) + (premiumRow?.total || 0)) * 100) / 100,
+                computed_from_field: 'createdAt',
+                bookings_count_in_window: bookings_matched,
+                // Table may be filtered by ?status=; these totals include every payout_status in the window
+                totals_ignore_payout_status_query: true,
+                // false = full log list + period totals only; true = table rows also limited to earning_period on createdAt
+                list_synced_to_earning_window: !!(from || to || list_applies_earning_window),
+            }
+        } catch (eAgg) {
+            console.error('[TEMP] booking logs earnings aggregation failed:', eAgg.message)
+            earnings_summary = {
+                period: periodKeyForSummary,
+                error: 'TEMPORARY_EARNINGS_UNAVAILABLE',
+                message: eAgg.message,
+            }
+        }
+
         return res.status(200).send({
             success: true,
             total,
-            data: formattedBookings
+            data: formattedBookings,
+            earnings_summary,
         })
     } catch (error) {
         console.error('Error getting booking logs:', error)
         return res.status(400).send({
             success: false,
             message: error.message
+        })
+    }
+}
+
+/**
+ * TEMPORARY: manual payout_status override on a booking shown in booking-logs (admin only).
+ * TODO: Replace with audited workflow / Stripe-aligned state machine when payouts are stabilized.
+ *
+ * PATCH body: { "payout_status": "pending" | "processing" | "paid" | "failed" }
+ */
+const updateBookingLogPayoutStatusTemporary = async (req, res) => {
+    try {
+        const { bookingId } = req.params
+        const { payout_status } = req.body
+
+        const allowed = ['pending', 'processing', 'paid', 'failed']
+        if (!payout_status || !allowed.includes(payout_status)) {
+            return res.status(400).send({
+                success: false,
+                message: `payout_status is required and must be one of: ${allowed.join(', ')}`,
+            })
+        }
+
+        const eligibleFilter = {
+            status: 'approved',
+            booking_status: 'past',
+            payment_status: 'paid',
+        }
+
+        let booking = null
+        // TEMPORARY: accept Mongo _id or human-readable booking_id (slug)
+        if (mongoose.Types.ObjectId.isValid(bookingId)) {
+            booking = await Booking.findOne({
+                _id: bookingId,
+                ...eligibleFilter,
+            })
+        }
+        if (!booking) {
+            booking = await Booking.findOne({
+                booking_id: String(bookingId),
+                ...eligibleFilter,
+            })
+        }
+
+        if (!booking) {
+            return res.status(404).send({
+                success: false,
+                message: 'Booking not found or not eligible for payout log status update',
+            })
+        }
+
+        await Booking.findByIdAndUpdate(booking._id, { payout_status }, { runValidators: true })
+
+        const updated = await Booking.findById(booking._id)
+            .select('booking_id payout_status payment_status booking_status status')
+            .lean()
+
+        return res.status(200).send({
+            success: true,
+            message:
+                '[TEMPORARY] payout_status updated manually — replace with proper Stripe-aligned payout flow later',
+            data: updated,
+        })
+    } catch (error) {
+        console.error('Error updating booking log payout status (TEMPORARY):', error)
+        return res.status(400).send({
+            success: false,
+            message: error.message,
         })
     }
 }
@@ -682,6 +888,7 @@ module.exports = {
     processAutomatedPayouts,
     getEligibleBookings,
     getBookingLogs,
+    updateBookingLogPayoutStatusTemporary,
     processManualPayout,
     getPayouts,
     getPayoutStats,

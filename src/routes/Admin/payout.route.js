@@ -32,6 +32,14 @@ router.post('/process-automated-payouts',
     payoutController.processAutomatedPayouts
 )
 
+// TEMPORARY: manual payout_status for booking-log rows — remove when proper payout auditing exists
+router.patch(
+    '/booking-logs/:bookingId/payout-status',
+    AuthVerifier,
+    RestrictAccess([ROLES.ADMIN]),
+    payoutController.updateBookingLogPayoutStatusTemporary
+)
+
 // Booking logs for payout management
 router.get('/booking-logs',
     AuthVerifier,

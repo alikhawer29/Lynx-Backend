@@ -45,7 +45,16 @@ app.use(logger('dev'))
 app.use(express.json({ limit: "350mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(cors())
+// Explicit CORS so PATCH / preflight (e.g. admin payout status) works from browser dev servers
+app.use(
+    cors({
+        origin: true,
+        methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+        credentials: true,
+        optionsSuccessStatus: 204,
+    })
+)
 
 app.use(`/${process.env.APP_NAME}/v1/api`, routes)
 app.use('/uploads', express.static(path.join(__dirname, "uploads")));
