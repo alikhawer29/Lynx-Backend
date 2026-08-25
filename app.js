@@ -35,6 +35,31 @@ if (!PORT) {
 
 let app = express()
 
+app.set('trust proxy', 1)
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow browser apps (dashboard), localhost, and tools with no Origin
+        callback(null, true)
+    },
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'X-Requested-With',
+        'Origin',
+        'Cache-Control',
+    ],
+    exposedHeaders: ['Content-Type'],
+    maxAge: 86400,
+    optionsSuccessStatus: 204,
+}
+
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
+
 app.post(
     "/stripe-webhook",
     express.raw({ type: "application/json" }),
@@ -45,16 +70,6 @@ app.use(logger('dev'))
 app.use(express.json({ limit: "350mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-// Explicit CORS so PATCH / preflight (e.g. admin payout status) works from browser dev servers
-app.use(
-    cors({
-        origin: true,
-        methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-        credentials: true,
-        optionsSuccessStatus: 204,
-    })
-)
 
 app.use(`/${process.env.APP_NAME}/v1/api`, routes)
 app.use('/uploads', express.static(path.join(__dirname, "uploads")));

@@ -5,10 +5,9 @@ let _io;
 const setIO = (server) => {
     _io = socket(server, {
         cors: {
-            origin: "*",
-            headers: {
-                "Access-Control-Allow-Origin": "*"
-            }
+            origin: true,
+            credentials: true,
+            methods: ['GET', 'POST'],
         }
     })
     return _io
