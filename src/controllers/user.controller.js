@@ -14,6 +14,7 @@ const {
     paginateResponse,
     paginationHandler,
     objectValidator,
+    normalizeOptionalContactFields,
     getSearchQuery,
     getDateRangeQuery,
     ERRORS,
@@ -373,15 +374,20 @@ const updateUser = async (req, res) => {
     try {
         let { decoded, body, files } = req; // files instead of file
 
+        // Phone / country_code / dialing_code optional — empty string clears; omitted leaves existing
+        const { forValidation, forSave } = normalizeOptionalContactFields(body, {
+            treatMissingAsNull: false,
+        });
+
         // Validate input fields
-        if (!objectValidator(body)) throw new Error(ERRORS.NULL_FIELD);
+        if (!objectValidator(forValidation)) throw new Error(ERRORS.NULL_FIELD);
 
         // Prevent role/email/password edits
         if (body?.role || body?.email || body?.password) {
             throw new Error("Email, password, or role cannot be edited");
         }
 
-        let payload = { ...body };
+        let payload = { ...forSave };
 
         // Handle profile picture update
         if (files) {

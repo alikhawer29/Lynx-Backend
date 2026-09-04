@@ -45,17 +45,18 @@ const userSchema = mongoose.Schema({
         type: String,
         default: "uploads/user/dummy.jpg"
     },
+    // Phone contact is optional for user/provider signup + profile edit
     country_code: {
         type: String,
-        required: true
+        default: null
     },
     dialing_code: {
         type: String,
-        required: true
+        default: null
     },
     phone: {
         type: String,
-        required: true
+        default: null
     },
     stripe_customer_id: {
         type: String,

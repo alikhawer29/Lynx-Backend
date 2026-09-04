@@ -3,7 +3,7 @@ const Otp = require('../models/otp.model')
 const Conversation = require('../models/conversation.model')
 const { comparePassword } = require('../helpers/encryption')
 const { generateToken, addToBlacklist } = require('../helpers/token')
-const { generateOTP, ERRORS, ROLES, objectValidator, AUTH_TYPES, normalize } = require('../utils')
+const { generateOTP, ERRORS, ROLES, objectValidator, normalizeOptionalContactFields, AUTH_TYPES, normalize } = require('../utils')
 const { getCurrentSubscription } = require('../helpers/stripe')
 const { sendMail } = require("../helpers/email")
 const admin = require('../configs/firebase')
@@ -371,7 +371,12 @@ const signup = async (req, res) => {
         const { body, files } = req;
         const { email, role, device_id, device_type } = body;
 
-        if (!objectValidator(body)) {
+        // Phone / country_code / dialing_code are optional — strip empties before strict field check
+        const { forValidation, forSave } = normalizeOptionalContactFields(body, {
+            treatMissingAsNull: true,
+        });
+
+        if (!objectValidator(forValidation)) {
             throw new Error(ERRORS.NULL_FIELD);
         }
 
@@ -380,7 +385,7 @@ const signup = async (req, res) => {
             throw new Error(ERRORS.USER_EXIST);
         }
 
-        const payload = { ...body };
+        const payload = { ...forSave };
 
         // Default role
         payload.role = role || ROLES.USER;

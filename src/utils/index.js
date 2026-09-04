@@ -223,6 +223,36 @@ const objectValidator = (object) => {
 
 }
 
+/** Optional contact fields on User (signup / edit profile). */
+const OPTIONAL_CONTACT_FIELDS = ['phone', 'country_code', 'dialing_code']
+
+/**
+ * Keep objectValidator strict for other fields while allowing empty/missing phone contact.
+ * - Signup: treatMissingAsNull=true so omitted phone saves as null
+ * - Update: treatMissingAsNull=false so omitted phone is left unchanged; "" clears to null
+ */
+const normalizeOptionalContactFields = (body = {}, { treatMissingAsNull = false } = {}) => {
+    const forValidation = { ...body }
+    const forSave = { ...body }
+
+    for (const key of OPTIONAL_CONTACT_FIELDS) {
+        const hasKey = Object.prototype.hasOwnProperty.call(body, key)
+        if (!hasKey) {
+            if (treatMissingAsNull) {
+                forSave[key] = null
+            }
+            continue
+        }
+        const val = body[key]
+        if (val === '' || val === null || val === undefined) {
+            delete forValidation[key]
+            forSave[key] = null
+        }
+    }
+
+    return { forValidation, forSave }
+}
+
 const getMonths = (year, month) => {
 
     let months = MONTHS.slice(0, month)
@@ -420,6 +450,7 @@ module.exports = {
     generateOTP,
     paginationHandler,
     objectValidator,
+    normalizeOptionalContactFields,
     getMonths,
     getMinMax,
     getSearchQuery,

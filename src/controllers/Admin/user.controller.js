@@ -10,6 +10,7 @@ const {
     paginateResponse,
     paginationHandler,
     objectValidator,
+    normalizeOptionalContactFields,
     getSearchQuery,
     getDateRangeQuery,
     ERRORS,
@@ -58,7 +59,12 @@ const updateUser = (async (req, res) => {
 
         let { decoded, body, file } = req
 
-        let validate = objectValidator(body)
+        // Phone / country_code / dialing_code optional — empty string clears; omitted leaves existing
+        const { forValidation, forSave } = normalizeOptionalContactFields(body, {
+            treatMissingAsNull: false,
+        })
+
+        let validate = objectValidator(forValidation)
 
         if (!validate) {
             throw new Error(ERRORS.NULL_FIELD)
@@ -68,7 +74,7 @@ const updateUser = (async (req, res) => {
             throw new Error("Email or Password is not allowed to be edit")
         }
 
-        let payload = { ...body }
+        let payload = { ...forSave }
 
         if (file) {
             let user = await User.findById(decoded.id)
